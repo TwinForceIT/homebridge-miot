@@ -1,6 +1,6 @@
 import type { MiotTransport } from '../miio/transport.js';
 import type { MiotProperty } from './profiles.js';
-import type { MiotAction, VacuumProfile, VacuumProperty, VacuumState, WritableVacuumProperty } from './vacuum-profile.js';
+import { hasVacuumFault, type MiotAction, type VacuumProfile, type VacuumProperty, type VacuumState, type WritableVacuumProperty } from './vacuum-profile.js';
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -80,8 +80,15 @@ export class VacuumDevice {
       // Check after earlier queued commands have completed, in the same
       // transaction as all writes. A cached idle reading can race Start.
       const state = await this.readState();
-      if (![0, 1, 4].includes(state.status) || state.fault !== 0) {
-        throw new VacuumStateError('Stop cleaning and clear device errors before changing the cleaning mode.', state);
+      // Matter permits reasserting the current mode in any state. A repeated
+      // preset must neither change settings nor turn a physical pause into an error.
+      if (changes.every(([name, value]) => state[name] === value)) return state;
+      if (hasVacuumFault(this.profile, state.fault)) {
+        throw new VacuumStateError(`Cannot change cleaning settings while Xiaomi fault ${state.fault} is active.`, state);
+      }
+      if (![0, 1, 4].includes(state.status)) {
+        const activity = this.profile.statuses[state.status] ?? `status ${state.status}`;
+        throw new VacuumStateError(`Cannot change cleaning settings while ${activity.toLowerCase()}. End the task first.`, state);
       }
       for (const [name, value] of changes) await this.writeProperty(this.profile.properties[name], value);
       return this.readState();

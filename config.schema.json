@@ -87,6 +87,12 @@
               "title": "Enable device",
               "type": "boolean",
               "default": true
+            },
+            "exposeDisplay": {
+              "title": "Expose purifier display in Apple Home",
+              "type": "boolean",
+              "default": false,
+              "description": "Air purifiers only. Adds a light control for the display: 0% Off, 50% Dim, 100% On. Apple Home may include it in lighting commands. Disabled by default; it does not control the purifier motor."
             }
           }
         }

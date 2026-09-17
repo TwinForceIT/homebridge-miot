@@ -27,6 +27,8 @@ export interface VacuumProfile {
   readonly actions: Readonly<Record<'start' | 'stop' | 'dock', MiotAction>>;
   readonly identify: MiotProperty;
   readonly statuses: Readonly<Record<number, string>>;
+  /** Values carried in the fault field that do not indicate a device failure. */
+  readonly nonErrorFaultCodes: readonly number[];
 }
 
 // Verified against Xiaomi's MIoT instance API on 2026-09-17. Do not extend this
@@ -53,6 +55,12 @@ const E10_PROFILE: VacuumProfile = {
     dock: { siid: 3, aiid: 1 },
   },
   identify: { siid: 4, piid: 1, format: 'integer', min: 1, max: 1, writable: true },
+  // E10 field report (2026-09-17): 2105 at 100% battery, no Xiaomi Home fault.
+  // Consistent with python-miio's Viomi "Fully charged" indication:
+  // https://github.com/rytilahti/python-miio/issues/789
+  // This is an observed E10 exception, not an official error-code dictionary.
+  // Do not assume that every code >= 2000 is harmless on this model.
+  nonErrorFaultCodes: [0, 2105],
   statuses: {
     0: 'Sleeping', 1: 'Idle', 2: 'Paused', 3: 'Returning to dock',
     4: 'Charging', 5: 'Vacuuming', 6: 'Vacuuming and mopping', 7: 'Mopping', 8: 'Updating firmware',
@@ -64,4 +72,9 @@ export function getVacuumProfile(model: string): VacuumProfile {
     throw new Error(`Unsupported vacuum model: ${model}`);
   }
   return E10_PROFILE;
+}
+
+/** Keep raw codes in readings; classify them consistently in guards and presentation. */
+export function hasVacuumFault(profile: VacuumProfile, code: number): boolean {
+  return !profile.nonErrorFaultCodes.includes(code);
 }

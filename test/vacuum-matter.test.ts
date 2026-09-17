@@ -120,7 +120,7 @@ test('native start, pause, resume, dock and Stop use the verified MIoT actions',
   await f.command('rvcOperationalState', 'goHome');
   assert.equal(f.state('rvcOperationalState').operationalState, 64);
   await f.command('rvcRunMode', 'changeToMode', { newMode: 0 });
-  assert.deepEqual(f.emulator.actions.map(({ siid, aiid }) => [siid, aiid]), [[2, 1], [2, 2], [2, 1], [3, 1], [3, 1]]);
+  assert.deepEqual(f.emulator.actions.map(({ siid, aiid }) => [siid, aiid]), [[2, 1], [2, 2], [2, 1], [3, 1]]);
   f.emulator.values.set('2/1', 1);
   f.emulator.ignoreActions = true;
   await assert.rejects(f.command('rvcRunMode', 'changeToMode', { newMode: 1 }), MatterStatus.Failure);
@@ -284,6 +284,26 @@ test('Homebridge creates the real Matter endpoint, validates updates and routes 
     await server.triggerCommand(f.accessory.UUID, 'rvcOperationalState', 'pause');
     await flush();
     assert.equal(read('rvcOperationalState').operationalState, 2);
+    const pausedActions = f.emulator.actions.length;
+    const pausedWrites = f.emulator.writes.length;
+    // Exercise the full Homebridge handler -> matter.js base behavior sequence.
+    f.emulator.values.set('2/2', 2105);
+    f.emulator.values.set('3/1', 100);
+    await server.triggerCommand(f.accessory.UUID, 'rvcCleanMode', 'changeToMode', { newMode: 42 });
+    await flush();
+    await server.triggerCommand(f.accessory.UUID, 'rvcRunMode', 'changeToMode', { newMode: 1 });
+    await flush();
+    assert.equal(read('rvcOperationalState').operationalState, 2);
+    assert.equal(read('rvcOperationalState').operationalError.errorStateId, 0);
+    assert.equal(read('rvcCleanMode').currentMode, 42);
+    assert.equal(f.emulator.actions.length, pausedActions);
+    assert.equal(f.emulator.writes.length, pausedWrites);
+    await assert.rejects(server.triggerCommand(f.accessory.UUID, 'rvcCleanMode', 'changeToMode', { newMode: 41 }));
+    await flush();
+    assert.equal(read('rvcOperationalState').operationalState, 2, 'Rejecting an actual setting change is not a robot fault');
+    assert.equal(read('rvcOperationalState').operationalError.errorStateId, 0);
+    f.emulator.values.set('2/2', 0);
+    f.emulator.values.set('3/1', 74);
     await assert.rejects(server.triggerCommand(f.accessory.UUID, 'rvcCleanMode', 'changeToMode', { newMode: 0 }));
     await flush();
     assert.equal(read('rvcCleanMode').currentMode, 42);
@@ -313,4 +333,51 @@ test('Homebridge creates the real Matter endpoint, validates updates and routes 
     await server.stop();
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+
+test('physical pause, return and a full-charge indication remain native states without false faults', async () => {
+  const f = fixture();
+  try {
+    f.emulator.values.set('3/1', 100);
+    f.emulator.values.set('2/2', 2105);
+    for (const [status, expected] of [[4, 65], [5, 1], [2, 2], [3, 64], [4, 65]]) {
+      f.emulator.values.set('2/1', status!);
+      await f.controller.refresh();
+      assert.equal(f.state('rvcOperationalState').operationalState, expected);
+      assert.deepEqual(f.state('rvcOperationalState').operationalError, { errorStateId: 0 });
+      await f.command('rvcCleanMode', 'changeToMode', { newMode: 0 });
+    }
+    assert.equal(f.emulator.actions.length, 0);
+    assert.equal(f.emulator.writes.length, 0);
+    assert.equal(f.warnings.length, 0);
+    f.emulator.values.set('2/2', 2531);
+    await f.controller.refresh();
+    assert.equal(f.state('rvcOperationalState').operationalState, 3);
+    assert.match(JSON.stringify(f.state('rvcOperationalState').operationalError), /2531/);
+    await f.command('rvcCleanMode', 'changeToMode', { newMode: 0 });
+    assert.equal(f.state('rvcOperationalState').operationalState, 3, 'No-op does not clear an unknown fault');
+    await assert.rejects(f.command('rvcCleanMode', 'changeToMode', { newMode: 2 }), MatterStatus.InvalidInState);
+    f.emulator.values.set('2/2', 2105);
+    await f.controller.refresh();
+    assert.equal(f.state('rvcOperationalState').operationalState, 65);
+    assert.equal(f.logs.filter(line => line.includes('fault cleared')).length, 1);
+    assert.equal(f.warnings.length, 1);
+  } finally { f.controller.stop(); }
+});
+
+test('repeated Matter run mode preserves physical pause and docking without replaying actions', async () => {
+  const f = fixture();
+  try {
+    for (const [status, runMode, expected] of [[2, 1, 2], [3, 0, 64], [4, 0, 65]]) {
+      f.emulator.values.set('2/1', status!);
+      await f.command('rvcRunMode', 'changeToMode', { newMode: runMode! });
+      assert.equal(f.state('rvcOperationalState').operationalState, expected);
+    }
+    assert.equal(f.emulator.actions.length, 0, 'A repeated run mode must not start or dock the robot');
+    f.emulator.values.set('2/1', 2);
+    await f.command('rvcOperationalState', 'resume');
+    assert.equal(f.state('rvcOperationalState').operationalState, 1, 'An explicit Resume still resumes');
+    assert.equal(f.emulator.actions.length, 1);
+  } finally { f.controller.stop(); }
 });

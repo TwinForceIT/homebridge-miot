@@ -23,11 +23,13 @@ export interface PurifierState {
   readonly childLock: boolean;
   readonly favoriteLevel: number;
   readonly motorRpm: number;
+  /** Actual screen enum: 0 off, 1 dim, 2 bright; absent when display controls are disabled. */
+  readonly displayBrightness?: number;
   readonly sampledAt: number;
 }
 
 export type PurifierProperty = Exclude<keyof PurifierState, 'sampledAt'>;
-export type WritablePurifierProperty = 'power' | 'mode' | 'childLock' | 'favoriteLevel';
+export type WritablePurifierProperty = 'power' | 'mode' | 'childLock' | 'favoriteLevel' | 'displayBrightness';
 
 export interface PurifierProfile {
   readonly productName: string;
@@ -49,6 +51,7 @@ const CPA4_PROPERTIES = {
   childLock: { siid: 8, piid: 1, format: 'boolean', writable: true },
   favoriteLevel: { siid: 9, piid: 11, format: 'integer', min: 0, max: 14, writable: true },
   motorRpm: { siid: 9, piid: 1, format: 'integer', min: 0, max: 2500 },
+  displayBrightness: { siid: 13, piid: 2, format: 'integer', min: 0, max: 2, writable: true },
 } as const satisfies Record<PurifierProperty, MiotProperty>;
 
 export function getPurifierProfile(model: string): PurifierProfile {
@@ -79,12 +82,12 @@ export function airQualityFromPm25(pm25: number): number {
 }
 
 export function favoriteLevelFromPercent(percent: number): number {
-  if (!Number.isFinite(percent) || percent < 1 || percent > 100) {
-    throw new Error('Speed must be between 1 and 100 percent.');
+  if (!Number.isFinite(percent) || percent < 2 || percent > 100) {
+    throw new Error('Manual speed must be between 2 and 100 percent.');
   }
-  return Math.round((percent - 1) * 14 / 99);
+  return Math.round((percent - 2) * 14 / 98);
 }
 
 export function percentFromFavoriteLevel(level: number): number {
-  return Math.round(1 + Math.max(0, Math.min(14, level)) * 99 / 14);
+  return Math.round(2 + Math.max(0, Math.min(14, level)) * 98 / 14);
 }

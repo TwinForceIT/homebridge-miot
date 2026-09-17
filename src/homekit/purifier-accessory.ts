@@ -26,7 +26,7 @@ export class PurifierAccessory {
     transport: MiotTransport,
     pollInterval: number,
   ) {
-    this.device = new PurifierDevice(transport, getPurifierProfile(config.model), config.did);
+    this.device = new PurifierDevice(transport, getPurifierProfile(config.model), config.did, { display: config.exposeDisplay === true });
     this.pollMilliseconds = Math.max(10, Number.isFinite(pollInterval) ? pollInterval : 15) * 1000;
     const { Service: S, Characteristic: C } = api.hap;
     this.purifier = accessory.getService(S.AirPurifier) ?? accessory.addService(S.AirPurifier, config.name);
@@ -53,7 +53,8 @@ export class PurifierAccessory {
     this.bind(this.purifier.getCharacteristic(C.TargetAirPurifierState),
       s => s.mode === 0 ? C.TargetAirPurifierState.AUTO : C.TargetAirPurifierState.MANUAL,
       value => this.device.setMode(Number(value) === C.TargetAirPurifierState.AUTO));
-    this.bind(this.purifier.getCharacteristic(C.RotationSpeed).setProps({ minStep: 1 }), s => {
+    this.bind(this.purifier.getCharacteristic(C.RotationSpeed).setProps({ minStep: 1,
+      perms: [api.hap.Perms.PAIRED_READ, api.hap.Perms.PAIRED_WRITE, api.hap.Perms.NOTIFY, api.hap.Perms.WRITE_RESPONSE] }), s => {
       if (!s.power) { return 0; }
       if (s.mode === 1) { return 1; }
       if (s.mode === 2) { return percentFromFavoriteLevel(s.favoriteLevel); }
@@ -74,6 +75,25 @@ export class PurifierAccessory {
     this.bind(this.filter.getCharacteristic(C.FilterLifeLevel), s => s.filterLife);
     this.bind(this.filter.getCharacteristic(C.FilterChangeIndication),
       s => s.filterLife === 0 ? C.FilterChangeIndication.CHANGE_FILTER : C.FilterChangeIndication.FILTER_OK);
+    // Display brightness is not part of HomeKit's AirPurifier service. This
+    // opt-in linked light represents only the physical display backlight.
+    const cachedDisplay = accessory.getServiceById(S.Lightbulb, 'display');
+    if (config.exposeDisplay === true) {
+      const display = cachedDisplay ?? accessory.addService(S.Lightbulb, `${config.name} Display`, 'display');
+      this.purifier.addLinkedService(display);
+      const displayLevel = (state: PurifierState): number => {
+        if (state.displayBrightness === undefined) throw this.communicationError();
+        return state.displayBrightness;
+      };
+      this.bind(display.getCharacteristic(C.On), s => displayLevel(s) > 0,
+        value => this.device.setDisplayPower(Boolean(value)));
+      this.bind(display.getCharacteristic(C.Brightness).setProps({ minStep: 1,
+        perms: [api.hap.Perms.PAIRED_READ, api.hap.Perms.PAIRED_WRITE, api.hap.Perms.NOTIFY, api.hap.Perms.WRITE_RESPONSE] }),
+      s => displayLevel(s) * 50, value => this.device.setDisplayBrightness(Number(value)));
+    } else if (cachedDisplay) {
+      this.purifier.removeLinkedService(cachedDisplay);
+      accessory.removeService(cachedDisplay);
+    }
     this.markUnavailable();
   }
 
@@ -127,6 +147,9 @@ export class PurifierAccessory {
           const state = await write(value);
           if (this.closed) { throw this.communicationError(); }
           this.publish(state);
+          // Preserve the confirmed discrete level rather than caching an
+          // arbitrary requested percentage after the handler returns.
+          if (characteristic.props.perms.includes(this.api.hap.Perms.WRITE_RESPONSE)) return read(state);
         } catch (error) {
           if (!this.closed) { this.reportUnavailable(error); }
           throw this.communicationError();

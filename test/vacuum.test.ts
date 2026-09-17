@@ -282,3 +282,38 @@ test('invalid preset values send no requests and partial firmware rejection is n
   assert.equal(emulator.writes().length, 2, 'No later writes follow a failed readback');
   device.close();
 });
+
+
+test('reasserting matching cleaning settings preserves an externally paused or returning robot', async () => {
+  const { emulator, device } = fixture();
+  for (const status of [2, 3, 5, 8]) {
+    emulator.values.set('2/1', status);
+    const state = await device.configureCleaning({ mode: 1, suction: 2, water: 2 });
+    assert.equal(state.status, status);
+    await assert.rejects(device.configureCleaning({ mode: 1, suction: 4 }), VacuumStateError);
+  }
+  emulator.values.set('2/2', 123);
+  assert.equal((await device.configureCleaning({ mode: 1 })).fault, 123, 'A no-op preserves a real fault');
+  assert.equal(emulator.writes().length, 0);
+  assert.equal(emulator.actions().length, 0);
+  device.close();
+});
+
+test('E10 reported full-charge indication permits real preset changes without hiding unknown faults', async () => {
+  const { emulator, device } = fixture();
+  emulator.values.set('3/1', 100);
+  emulator.values.set('2/2', 2105);
+  const state = await device.configureCleaning({ mode: 0, suction: 4 });
+  assert.equal(state.fault, 2105, 'Preserve the raw diagnostic code');
+  assert.equal(state.mode, 0);
+  assert.equal(state.suction, 4);
+  for (const fault of [123, 2103, 2531]) {
+    emulator.values.set('2/2', fault);
+    await assert.rejects(device.configureCleaning({ mode: 2 }), error => {
+      assert.ok(error instanceof VacuumStateError);
+      assert.match(error.message, new RegExp(String(fault)));
+      return true;
+    });
+  }
+  device.close();
+});

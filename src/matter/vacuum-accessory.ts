@@ -2,7 +2,7 @@ import type { API, Logger, MatterAccessory, MatterAPI } from 'homebridge';
 import { deviceIdentity, type DeviceConfig } from '../config.js';
 import { VacuumDevice, VacuumStateError } from '../devices/vacuum.js';
 import { cleaningModeForState, findCleaningMode, VACUUM_CLEAN_MODES } from './vacuum-modes.js';
-import { getVacuumProfile, type VacuumState } from '../devices/vacuum-profile.js';
+import { getVacuumProfile, hasVacuumFault, type VacuumState } from '../devices/vacuum-profile.js';
 import type { MiotTransport } from '../miio/transport.js';
 
 // Homebridge 2.4 exposes RvcOperationalState enums, but not these other
@@ -102,7 +102,13 @@ export class VacuumAccessory {
             }
             // E10's stop-sweeping action pauses in place. Idle must end cleaning,
             // so Stop/Idle returns to the dock; the native Pause command is separate.
-            await this.command(() => request.newMode === 1 ? this.device.start() : this.device.dock(), undefined, request.newMode);
+            await this.command(async () => {
+              // Use a fresh reading within the serialized command. Reasserting
+              // Cleaning must not resume a robot paused with its physical button.
+              const state = await this.device.refresh();
+              if (this.runMode(state) === request.newMode) return state;
+              return request.newMode === 1 ? this.device.start() : this.device.dock();
+            }, undefined, request.newMode);
           },
         },
         rvcCleanMode: {
@@ -233,7 +239,8 @@ export class VacuumAccessory {
     else if (state.status === 3) operationalState = Op.OperationalState.SeekingCharger;
     else if (state.status === 4) operationalState = Op.OperationalState.Charging;
     let operationalError: Record<string, unknown> = { errorStateId: Op.ErrorState.NoError };
-    if (state.fault !== 0) {
+    const faulted = hasVacuumFault(this.device.profile, state.fault);
+    if (faulted) {
       operationalState = Op.OperationalState.Error;
       operationalError = {
         errorStateId: Op.ErrorState.UnableToCompleteOperation,
@@ -264,8 +271,11 @@ export class VacuumAccessory {
       this.lastProblem = undefined;
     }
     if (state.fault !== this.lastFault) {
-      if (state.fault !== 0) this.log.warn(`${this.config.name}: Xiaomi device error ${state.fault}. Check Xiaomi Home for details.`);
-      else if (this.lastFault !== undefined && this.lastFault !== 0) this.log.info(`${this.config.name}: device fault cleared.`);
+      if (faulted) {
+        this.log.warn(`${this.config.name}: Xiaomi device error ${state.fault} (status ${state.status}, battery ${state.battery}%). Check Xiaomi Home for details.`);
+      } else if (this.lastFault !== undefined && hasVacuumFault(this.device.profile, this.lastFault)) {
+        this.log.info(`${this.config.name}: device fault cleared.`);
+      }
       this.lastFault = state.fault;
     }
     for (const [key, label] of [

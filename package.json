@@ -1,7 +1,7 @@
 {
   "name": "@twinforce/homebridge-miot",
   "displayName": "Xiaomi MIoT",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Native Apple Home integration for Xiaomi MIoT devices: Air Purifier 4 Compact over HomeKit and Robot Vacuum E10 over Matter.",
   "type": "module",
   "main": "dist/index.js",

@@ -90,7 +90,7 @@ test('cloud import preserves Homebridge settings, manual identity, names and dis
   const original = [
     { platform: 'OtherPlatform', untouched: true },
     { platform: 'XiaomiMiot', name: 'Home', pollInterval: 30, _bridge: { username: 'AA:BB:CC:DD:EE:FF' }, devices: [
-      { id: 'salon', name: 'Salon', model: 'xiaomi.airp.cpa4', host: DEVICE.localip, token: 'old-token', enabled: false },
+      { id: 'salon', name: 'Salon', model: 'xiaomi.airp.cpa4', host: DEVICE.localip, token: 'old-token', enabled: false, exposeDisplay: true },
     ] },
   ];
   const incoming = { did: DEVICE.did, name: DEVICE.name, model: DEVICE.model, host: DEVICE.localip, token: TOKEN, enabled: true };
@@ -102,6 +102,7 @@ test('cloud import preserves Homebridge settings, manual identity, names and dis
   assert.equal(merged[1].devices[0].id, 'salon');
   assert.equal(merged[1].devices[0].name, 'Salon');
   assert.equal(merged[1].devices[0].enabled, false);
+  assert.equal(merged[1].devices[0].exposeDisplay, true);
   assert.equal(merged[1].devices[0].token, TOKEN);
   assert.equal(original[1]?.devices?.[0]?.token, 'old-token');
   const moved = mergeDevices(merged, [{ ...incoming, host: '192.168.1.51' }]);

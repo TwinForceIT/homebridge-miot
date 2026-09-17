@@ -18,7 +18,8 @@ The purifier uses standard HomeKit services. The E10 uses Homebridge's native Ma
 | Power | `AirPurifier.Active` |
 | Automatic / manual control | `TargetAirPurifierState` — Auto / Manual |
 | Current operation | `CurrentAirPurifierState` — inactive / idle / purifying |
-| Speed | `RotationSpeed`, 0–100%; 15 levels in Xiaomi Favorite mode |
+| Speed / Sleep | `RotationSpeed`: 0% Off, 1% Sleep, 2–100% for 15 Favorite levels |
+| Display brightness (optional) | Linked `Lightbulb`: 0% Off, 50% Dim, 100% On |
 | Physical button lock | `LockPhysicalControls` |
 | PM2.5 | `AirQualitySensor.PM2_5Density`, µg/m³ |
 | Air quality category | `AirQuality` |
@@ -27,9 +28,13 @@ The purifier uses standard HomeKit services. The E10 uses Homebridge's native Ma
 | Fault | Standard `StatusFault` on the air quality service, with details in Homebridge logs |
 | Lost connection | A HomeKit communication error instead of returning stale state as current |
 
-Setting the speed above 0 turns the purifier on and selects Favorite mode, represented as Manual in HomeKit. A speed of 0 turns it off. The slider maps to Xiaomi's 15 levels, so the reported percentage may be rounded. In Auto, the displayed speed is an estimate based on motor RPM.
+The speed slider selects **Off at 0%**, the actual Xiaomi **Sleep mode at 1%**, and **Favorite (manual) at 2–100%**. Sleep preserves the previously chosen Favorite level. All 15 Favorite levels remain available, so the reported manual percentage may be rounded. These percentages are control positions, not a measured percentage of power consumption. In Auto, the displayed speed is an estimate based on motor RPM.
 
-HomeKit has no standard Sleep mode for air purifiers. Sleep selected in Xiaomi Home is reported as Manual with the lowest slider position. Moving the slider selects Favorite. There is no separate Sleep switch.
+HomeKit's [native purifier mode selector](https://developer.apple.com/documentation/homekit/hmcharacteristicvaluetargetairpurifierstate) supports only Auto and Manual. A third named Sleep option cannot be added to Apple Home through that service. Sleep is shown as Manual with the slider at 1%, including when selected in Xiaomi Home. Repeating Manual while already in Sleep preserves Sleep; move the slider above 1% to select Favorite. There is no separate Sleep switch.
+
+Display control is **disabled by default**. In the plugin settings, open **Add manually or edit configuration**, find the purifier, and enable **Expose purifier display in Apple Home**; save and restart the bridge. Alternatively, add `"exposeDisplay": true` to that purifier's device entry. This adds a linked standard light named **[Purifier name] Display**, because HomeKit does not provide a display-brightness control within its AirPurifier service. Apple Home treats it as a light, including in lighting commands; the purifier itself remains an AirPurifier.
+
+The display has three hardware settings: **0% Off, 50% Dim, 100% On**. Intermediate requests map to Dim for 1–50% and On above 50%; the actual setting is read back and reported. Turning the display off does not turn the purifier off, and turning the display on does not start purification. During the current bridge session, turning it back on restores the last observed nonzero brightness. Without such a reading after a restart, On selects full brightness. Changes made on the purifier or in Xiaomi Home are picked up by polling. Disabling the option removes only the display control after restarting, preserving the purifier's pairing.
 
 HomeKit does not provide a text error list or a `StatusFault` characteristic directly on the AirPurifier service. Fault code 2 (motor), code 3 (dust sensor), and unknown codes are logged only when they change; fault clearance and connectivity recovery are also logged. A dust sensor fault reports unknown air quality and makes the PM2.5 reading return an error.
 
@@ -54,9 +59,9 @@ Apple Home's native robot vacuum support uses **Matter**. The E10 is published t
 | Device fault | Native operational error, with the Xiaomi error code in Homebridge logs |
 | Lost connection | Native operational error and unknown battery; commands fail until communication recovers |
 
-**Pause is mapped to Xiaomi's stop-sweeping action, which upstream integrations use to pause in place; this behavior still needs confirmation on physical E10 hardware. Stop/Idle sends the return-to-dock action.** Start and Resume use the robot's start-cleaning action. State is read back from the robot rather than assumed from a command being accepted. Change the cleaning mode while the robot is idle or charging and has no fault; changes during cleaning, pause, return to dock, or a firmware update are rejected.
+**Pause is mapped to Xiaomi's stop-sweeping action, which upstream integrations use to pause in place; this behavior still needs confirmation on physical E10 hardware. Stop/Idle sends the return-to-dock action.** Start and Resume use the robot's start-cleaning action. State is read back from the robot rather than assumed from a command being accepted. Change the cleaning mode while the robot is idle or charging and has no fault; actual setting changes during cleaning, pause, return to dock, or a firmware update are rejected. Repeating settings already reported by the robot succeeds without sending another command. Repeating the Cleaning run mode preserves a physical pause; use the native Resume command to resume.
 
-Only `xiaomi.vacuum.b112` is supported. Similar product names such as E10C or E10 variants with another MIoT identifier must not be assumed compatible. The published E10 specification supplies numeric fault codes without a complete description for each value, so the plugin preserves the code and reports a generic native fault rather than inventing a diagnosis. Apple Home decides how native modes, errors, and battery details are displayed. A communication failure is exposed as a native operational error; the Homebridge 2.4 API does not let this plugin guarantee an Apple Home “No Response” badge for the standalone robot.
+Only `xiaomi.vacuum.b112` is supported. Similar product names such as E10C or E10 variants with another MIoT identifier must not be assumed compatible. The published E10 specification supplies numeric fault codes without a complete description for each value. The plugin preserves raw codes and treats unrecognized nonzero codes as native faults. One model-specific exception is `2105`: an E10 field report showed it at 100% battery without a Xiaomi Home error, consistent with the [fully charged indication documented by python-miio for Viomi](https://github.com/rytilahti/python-miio/issues/789). It does not create an operational error or block cleaning settings. This exception is based on observed behavior, not an official E10 error dictionary; other codes, including other values above 2000, are not silently ignored. Activity and battery still come from their own properties, not from this code. Apple Home decides how native modes, errors, and battery details are displayed. A communication failure is exposed as a native operational error; the Homebridge 2.4 API does not let this plugin guarantee an Apple Home “No Response” badge for the standalone robot.
 
 The native cleaning-mode menu includes 17 choices:
 

@@ -27,3 +27,12 @@ test('disabled entries can be kept incomplete and stable IDs survive IP or token
   assert.equal(deviceIdentity({ ...device, did: '123' }), 'did:123');
   assert.equal(deviceIdentity(device), 'host:192.168.1.30');
 });
+
+
+test('display control is opt-in, type-checked and limited to supported purifiers', () => {
+  assert.equal(parseConfig({ devices: [device] }).devices[0]?.exposeDisplay, undefined);
+  assert.equal(parseConfig({ devices: [{ ...device, exposeDisplay: true }] }).devices[0]?.exposeDisplay, true);
+  assert.equal(parseConfig({ devices: [{ ...device, exposeDisplay: false }] }).devices[0]?.exposeDisplay, false);
+  assert.throws(() => parseConfig({ devices: [{ ...device, exposeDisplay: 'true' }] }), /exposeDisplay/);
+  assert.throws(() => parseConfig({ devices: [{ ...device, model: 'xiaomi.vacuum.b112', exposeDisplay: true }] }), /only for air purifiers/);
+});

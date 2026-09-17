@@ -1,5 +1,6 @@
 import { isIP } from 'node:net';
 import { isSupportedModel } from './devices/registry.js';
+import { isSupportedModel as isPurifierModel } from './devices/profiles.js';
 
 export interface DeviceConfig {
   name: string;
@@ -9,6 +10,7 @@ export interface DeviceConfig {
   did?: string;
   id?: string;
   enabled?: boolean;
+  exposeDisplay?: boolean;
 }
 export interface ParsedConfig {
   devices: DeviceConfig[];
@@ -45,8 +47,11 @@ export function parseConfig(input: unknown): ParsedConfig {
         throw new Error(`${label}: ${key} must be a string of up to 128 characters.`);
       }
     }
+    if (value.exposeDisplay !== undefined && typeof value.exposeDisplay !== 'boolean') throw new Error(`${label}: exposeDisplay must be true or false.`);
+    if (value.exposeDisplay === true && !isPurifierModel(value.model)) throw new Error(`${label}: display control is supported only for air purifiers.`);
     const device: DeviceConfig = {
       name: value.name.trim(), host: value.host, model: value.model, token: value.token.toLowerCase(),
+      ...(typeof value.exposeDisplay === 'boolean' ? { exposeDisplay: value.exposeDisplay } : {}),
       ...(typeof value.id === 'string' && value.id.trim() ? { id: value.id.trim() } : {}),
       ...(typeof value.did === 'string' && value.did.trim() ? { did: value.did.trim() } : {}),
     };

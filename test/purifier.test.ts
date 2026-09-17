@@ -14,7 +14,7 @@ class DeviceEmulator implements MiotTransport {
   readonly calls: Array<{ method: string; params: RequestProperty[] }> = [];
   readonly values = new Map<string, unknown>([
     ['2/1', true], ['2/2', 0], ['2/4', 0], ['3/4', 18],
-    ['4/1', 81], ['8/1', false], ['9/11', 5], ['9/1', 600],
+    ['4/1', 81], ['8/1', false], ['9/11', 5], ['9/1', 600], ['13/2', 2],
   ]);
   closed = false;
   ignoreWrites = false;
@@ -50,7 +50,7 @@ class DeviceEmulator implements MiotTransport {
   writes(): RequestProperty[] { return this.calls.filter(c => c.method === 'set_properties').flatMap(c => c.params); }
 }
 
-function fixture(model = 'xiaomi.airp.cpa4') {
+function fixture(model = 'xiaomi.airp.cpa4', exposeDisplay = false) {
   const emulator = new DeviceEmulator();
   const accessory = new hap.Accessory('Purifier', hap.uuid.generate(`purifier-${model}`));
   const warnings: string[] = [];
@@ -60,12 +60,12 @@ function fixture(model = 'xiaomi.airp.cpa4') {
     info: (message: string) => { logs.push(message); },
     debug: () => {}, error: () => {}, success: () => {},
   } as unknown as Logger;
-  const config: DeviceConfig = { name: 'Purifier', model, host: '192.0.2.10', token: '0'.repeat(32), did: '12345678' };
+  const config: DeviceConfig = { name: 'Purifier', model, host: '192.0.2.10', token: '0'.repeat(32), did: '12345678', exposeDisplay };
   const controller = new PurifierAccessory({ hap } as unknown as API, logger, accessory as unknown as PlatformAccessory, config, emulator, 15);
   const purifier = accessory.getService(hap.Service.AirPurifier)!;
   const air = accessory.getService(hap.Service.AirQualitySensor)!;
   const filter = accessory.getService(hap.Service.FilterMaintenance)!;
-  return { emulator, accessory, controller, purifier, air, filter, warnings, logs };
+  return { emulator, accessory, controller, purifier, air, filter, warnings, logs, config, logger };
 }
 
 async function communicationFailure(result: Promise<unknown>): Promise<void> {
@@ -88,7 +88,7 @@ test('model profiles match the two official CPA4 MIoT instances', () => {
 test('every favorite level is reachable while zero percent remains reserved for off', () => {
   for (let level = 0; level < 15; level++) {
     const percent = percentFromFavoriteLevel(level);
-    assert.ok(percent >= 1 && percent <= 100);
+    assert.ok(percent >= 2 && percent <= 100);
     assert.equal(favoriteLevelFromPercent(percent), level);
   }
   assert.throws(() => favoriteLevelFromPercent(NaN));
@@ -267,4 +267,103 @@ test('start is idempotent, and stop closes the transport and blocks future reque
   await communicationFailure(f.purifier.getCharacteristic(hap.Characteristic.Active).handleSetRequest(1));
   assert.equal(f.emulator.calls.length, count);
   assert.equal(f.emulator.closed, true);
+});
+
+
+test('native speed selects real Sleep at 1% and preserves it when Manual is repeated', async () => {
+  const f = fixture();
+  const C = hap.Characteristic;
+  try {
+    await f.controller.refresh();
+    const previousFavorite = f.emulator.values.get('9/11');
+    await f.purifier.getCharacteristic(C.RotationSpeed).handleSetRequest(1);
+    assert.equal(f.emulator.values.get('2/4'), 1, 'Use Xiaomi Sleep, not the lowest Favorite level');
+    assert.equal(f.emulator.values.get('9/11'), previousFavorite);
+    assert.equal(await f.purifier.getCharacteristic(C.RotationSpeed).handleGetRequest(), 1);
+    assert.equal(await f.purifier.getCharacteristic(C.TargetAirPurifierState).handleGetRequest(), C.TargetAirPurifierState.MANUAL);
+    await f.purifier.getCharacteristic(C.TargetAirPurifierState).handleSetRequest(C.TargetAirPurifierState.MANUAL);
+    assert.equal(f.emulator.values.get('2/4'), 1, 'HomeKit Manual includes Sleep and must not cancel it');
+    await f.purifier.getCharacteristic(C.RotationSpeed).handleSetRequest(2);
+    assert.equal(f.emulator.values.get('2/4'), 2);
+    assert.equal(f.emulator.values.get('9/11'), 0);
+    assert.equal(await f.purifier.getCharacteristic(C.RotationSpeed).handleGetRequest(), 2);
+    await f.purifier.getCharacteristic(C.RotationSpeed).handleSetRequest(0);
+    assert.equal(f.emulator.values.get('2/1'), false);
+  } finally { f.controller.stop(); }
+});
+
+
+test('optional native display light controls only the backlight with confirmed discrete brightness', async () => {
+  for (const model of ['xiaomi.airp.cpa4', 'zhimi.airp.cpa4']) {
+    const f = fixture(model, true);
+    const C = hap.Characteristic;
+    try {
+      const display = f.accessory.getServiceById(hap.Service.Lightbulb, 'display')!;
+      assert.ok(display);
+      assert.ok(f.purifier.linkedServices.includes(display));
+      assert.equal(f.purifier.isPrimaryService, true);
+      await communicationFailure(display.getCharacteristic(C.Brightness).handleGetRequest());
+      await f.controller.refresh();
+      assert.equal(await display.getCharacteristic(C.Brightness).handleGetRequest(), 100);
+      const brightness = display.getCharacteristic(C.Brightness);
+      assert.equal(await brightness.handleSetRequest(25), 50, 'Write response returns the actual discrete setting');
+      assert.equal(brightness.value, 50);
+      assert.equal(f.emulator.values.get('13/2'), 1);
+      await display.getCharacteristic(C.On).handleSetRequest(false);
+      assert.equal(f.emulator.values.get('13/2'), 0);
+      assert.equal(await brightness.handleGetRequest(), 0);
+      await display.getCharacteristic(C.On).handleSetRequest(true);
+      assert.equal(f.emulator.values.get('13/2'), 1, 'Turning on restores the previous dim setting');
+      await brightness.handleSetRequest(90);
+      assert.equal(brightness.value, 100);
+      assert.equal(f.emulator.values.get('13/2'), 2);
+      await brightness.handleSetRequest(0);
+      assert.equal(await display.getCharacteristic(C.On).handleGetRequest(), false);
+      assert.equal(f.emulator.values.get('2/1'), true, 'Display off does not turn off purification');
+      assert.equal(f.emulator.values.get('2/4'), 0);
+      assert.equal(f.emulator.values.get('9/11'), 5);
+      assert.ok(f.emulator.writes().every(p => p.siid === 13 && p.piid === 2));
+      f.emulator.values.set('13/2', 1);
+      await f.controller.refresh();
+      assert.equal(brightness.value, 50, 'External display changes are reflected by polling');
+      f.emulator.ignoreWrites = true;
+      await communicationFailure(brightness.handleSetRequest(100));
+      await communicationFailure(brightness.handleGetRequest());
+      f.emulator.ignoreWrites = false;
+      await f.controller.refresh();
+      assert.equal(await brightness.handleGetRequest(), 50);
+    } finally { f.controller.stop(); }
+  }
+});
+
+test('turning on the display never powers on an inactive purifier', async () => {
+  const f = fixture('xiaomi.airp.cpa4', true);
+  try {
+    f.emulator.values.set('2/1', false);
+    f.emulator.values.set('13/2', 0);
+    await f.controller.refresh();
+    const display = f.accessory.getServiceById(hap.Service.Lightbulb, 'display')!;
+    await display.getCharacteristic(hap.Characteristic.On).handleSetRequest(true);
+    assert.equal(f.emulator.values.get('2/1'), false);
+    assert.equal(f.emulator.values.get('13/2'), 2);
+    assert.ok(f.emulator.writes().every(p => p.siid === 13 && p.piid === 2));
+  } finally { f.controller.stop(); }
+});
+
+test('disabling display control removes only its cached service and stops polling its property', async () => {
+  const f = fixture('xiaomi.airp.cpa4', true);
+  const uuid = f.accessory.UUID;
+  const display = f.accessory.getServiceById(hap.Service.Lightbulb, 'display')!;
+  f.controller.stop();
+  const emulator = new DeviceEmulator();
+  const controller = new PurifierAccessory({ hap } as unknown as API, f.logger, f.accessory as unknown as PlatformAccessory,
+    { ...f.config, exposeDisplay: false }, emulator, 15);
+  try {
+    assert.equal(f.accessory.UUID, uuid);
+    assert.equal(f.accessory.getService(hap.Service.AirPurifier), f.purifier);
+    assert.equal(f.accessory.getServiceById(hap.Service.Lightbulb, 'display'), undefined);
+    assert.ok(!f.purifier.linkedServices.includes(display));
+    await controller.refresh();
+    assert.ok(emulator.calls.every(c => c.params[0]!.siid !== 13));
+  } finally { controller.stop(); }
 });
