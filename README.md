@@ -43,7 +43,7 @@ Kategoria `AirQuality` jest polityką prezentacji wtyczki: progi PM2.5 to 12 / 3
 
 ## Instalacja z npm
 
-Docelowa publiczna paczka to **`@twinforce/homebridge-miot`** w npmjs.org. Po jej pierwszej publikacji instalacja nie wymaga konta ani tokenu npm:
+Paczka [@twinforce/homebridge-miot](https://www.npmjs.com/package/@twinforce/homebridge-miot) jest dostępna publicznie w npmjs.org. Instalacja nie wymaga konta ani tokenu npm:
 
 ```sh
 npm install -g @twinforce/homebridge-miot
@@ -62,7 +62,7 @@ npm install -g @twinforce/homebridge-miot
 
 Zachowaj blok `platform: "XiaomiMiot"`, identyfikatory urządzeń i cache akcesoriów. Homebridge 2 rozpoznaje platformę po tej samej nazwie, a wtyczka zachowuje dotychczasowe UUID akcesoriów. Nie uruchamiaj obu wersji jednocześnie. Zaktualizuj również ewentualne wpisy `plugins`, `disabledPlugins` i pełne nazwy platformy odwołujące się do starej nazwy paczki.
 
-### Instalacja lokalna przed publikacją
+### Instalacja lokalna
 
 ```sh
 npm ci
