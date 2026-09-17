@@ -1,6 +1,7 @@
+import { setImmediate as nextTurn } from 'node:timers/promises';
 import type { API, Logger, MatterAccessory, MatterAPI } from 'homebridge';
 import { deviceIdentity, type DeviceConfig } from '../config.js';
-import { VacuumDevice, VacuumStateError } from '../devices/vacuum.js';
+import { VacuumCommandError, VacuumDevice, VacuumStateError } from '../devices/vacuum.js';
 import { cleaningModeForState, findCleaningMode, VACUUM_CLEAN_MODES } from './vacuum-modes.js';
 import { getVacuumProfile, hasVacuumFault, type VacuumState } from '../devices/vacuum-profile.js';
 import type { MiotTransport } from '../miio/transport.js';
@@ -22,6 +23,7 @@ export class VacuumAccessory {
   private readonly device: VacuumDevice;
   private readonly pollMilliseconds: number;
   private timer?: ReturnType<typeof setTimeout>;
+  private refreshCount = 0;
   private running = false;
   private closed = false;
   private lastProblem?: string;
@@ -133,6 +135,7 @@ export class VacuumAccessory {
   start(): void {
     if (this.running || this.closed) return;
     this.running = true;
+    this.log.debug(`${this.config.name}: background polling started (${this.pollMilliseconds / 1000}s interval).`);
     // Homebridge restores persisted attributes while registering the endpoint.
     // Clear stale health/battery before the first fresh device response arrives.
     void this.enqueue(() => this.markUnavailable()).catch(error => this.reportUpdateError(error)).then(() => this.pollCycle());
@@ -151,7 +154,11 @@ export class VacuumAccessory {
       if (this.closed) return;
       try {
         const state = await this.device.refresh();
-        if (!this.closed) await this.publish(state);
+        if (!this.closed) {
+          await this.publish(state);
+          this.refreshCount++;
+          this.log.debug(`${this.config.name}: state read #${this.refreshCount}: status=${state.status} (${this.device.profile.statuses[state.status]}), mode=${state.mode}, battery=${state.battery}%, fault=${state.fault}; Matter update submitted.`);
+        }
       } catch (error) {
         if (!this.closed) await this.reportUnavailable(error);
       }
@@ -165,10 +172,36 @@ export class VacuumAccessory {
   }
 
   private async pollCycle(): Promise<void> {
-    await this.refresh();
-    if (this.running && !this.closed) {
-      this.timer = setTimeout(() => { void this.pollCycle(); }, this.pollMilliseconds);
-      this.timer.unref();
+    try {
+      await this.refresh();
+      await this.logMatterSnapshot();
+    } catch (error) {
+      this.reportUpdateError(error);
+    } finally {
+      if (this.running && !this.closed) {
+        this.timer = setTimeout(() => { void this.pollCycle(); }, this.pollMilliseconds);
+        this.timer.unref();
+      }
+    }
+  }
+
+  private async logMatterSnapshot(): Promise<void> {
+    // Homebridge's update API resolves after emitting an event, before endpoint
+    // updates finish. Yield before sampling the public, live endpoint state.
+    // This is a diagnostic snapshot, not proof of delivery to an Apple client.
+    await nextTurn();
+    if (this.closed) return;
+    try {
+      const [operation, run, power] = await Promise.all([
+        this.matter.getAccessoryState(this.accessory.UUID, 'rvcOperationalState'),
+        this.matter.getAccessoryState(this.accessory.UUID, 'rvcRunMode'),
+        this.matter.getAccessoryState(this.accessory.UUID, 'powerSource'),
+      ]);
+      if (this.closed) return;
+      const number = (value: unknown): string => typeof value === 'number' && Number.isFinite(value) ? String(value) : 'unknown';
+      this.log.debug(`${this.config.name}: Matter snapshot: activity=${number(operation?.operationalState)}, runMode=${number(run?.currentMode)}, batteryHalfPercent=${number(power?.batPercentRemaining)}, error=${number(operation?.operationalError?.errorStateId)}, errorDetails=${typeof operation?.operationalError?.errorStateDetails === 'string' && operation.operationalError.errorStateDetails.length > 0 ? 'present' : 'empty'}.`);
+    } catch (error) {
+      if (!this.closed) this.log.debug(`${this.config.name}: Matter snapshot unavailable (${this.safeMessage(error)}).`);
     }
   }
 
@@ -176,15 +209,8 @@ export class VacuumAccessory {
     return this.enqueue(async () => {
       if (this.closed) throw new this.matter.status.Failure('Device connection is closed.');
       try {
-        let state = await action();
-        // Acknowledged movement may take a moment to begin. Re-read without
-        // replaying the action, then reject an unconfirmed transition rather
-        // than allowing Homebridge's base behavior to invent the requested mode.
-        for (let attempt = 0; runMode !== undefined && this.runMode(state) !== runMode && attempt < 2; attempt++) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-          if (this.closed) throw new this.matter.status.Failure('Device connection is closed.');
-          state = await this.device.refresh();
-        }
+        const state = await action();
+        // The device layer confirms asynchronous changes without replaying writes.
         if (this.closed) throw new this.matter.status.Failure('Device connection is closed.');
         if (cleanMode !== undefined) this.preferredCleanMode = cleanMode;
         await this.publish(state);
@@ -195,6 +221,13 @@ export class VacuumAccessory {
           throw new this.matter.status.Failure('The robot has not confirmed all settings of the cleaning preset.');
         }
       } catch (error) {
+        if (error instanceof VacuumCommandError) {
+          if (!this.closed) {
+            await this.publish(error.state);
+            this.log.warn(`${this.config.name}: command not completed (${this.safeMessage(error)}). Device is still reachable.`);
+          }
+          throw new this.matter.status.Failure(this.safeMessage(error));
+        }
         if (error instanceof VacuumStateError) {
           await this.publish(error.state);
           throw new this.matter.status.InvalidInState(error.message);
@@ -238,7 +271,12 @@ export class VacuumAccessory {
     else if (state.status === 2) operationalState = Op.OperationalState.Paused;
     else if (state.status === 3) operationalState = Op.OperationalState.SeekingCharger;
     else if (state.status === 4) operationalState = Op.OperationalState.Charging;
-    let operationalError: Record<string, unknown> = { errorStateId: Op.ErrorState.NoError };
+    // Matter.js merges nested structs: omitting details retains the previous
+    // fault text even with NoError. Explicitly clear it on every healthy reading.
+    let operationalError: Record<string, unknown> = {
+      errorStateId: Op.ErrorState.NoError,
+      errorStateDetails: '',
+    };
     const faulted = hasVacuumFault(this.device.profile, state.fault);
     if (faulted) {
       operationalState = Op.OperationalState.Error;

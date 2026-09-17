@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { MiotTransport, MiotParams } from '../src/miio/transport.js';
 import { getVacuumProfile, SUPPORTED_VACUUM_MODELS } from '../src/devices/vacuum-profile.js';
-import { VacuumDevice, VacuumStateError } from '../src/devices/vacuum.js';
+import { VacuumCommandError, VacuumDevice, VacuumStateError } from '../src/devices/vacuum.js';
 
 interface RequestProperty { did: string; siid: number; piid: number; value?: unknown }
 interface RequestAction { did: string; siid: number; aiid: number; in: unknown[] }
@@ -72,7 +72,10 @@ class VacuumEmulator implements MiotTransport {
 
 function fixture(did?: string) {
   const emulator = new VacuumEmulator();
-  const device = new VacuumDevice(emulator, getVacuumProfile('xiaomi.vacuum.b112'), did);
+  let now = 0;
+  const device = new VacuumDevice(emulator, getVacuumProfile('xiaomi.vacuum.b112'), did, {
+    now: () => now, sleep: async milliseconds => { now += milliseconds; },
+  });
   return { emulator, device };
 }
 
@@ -122,7 +125,7 @@ test('start, pause, resume, stop and dock send exact MIoT actions and report rea
 test('an action acknowledgement never becomes invented movement state', async () => {
   const { emulator, device } = fixture();
   emulator.delayedAction = true;
-  assert.equal((await device.start()).status, 4, 'Robot still reports charging after the command');
+  await assert.rejects(device.start(), VacuumCommandError);
   assert.equal(device.state?.status, 4);
   assert.equal(emulator.actions()[0]?.did, '2.1');
   emulator.values.set('2/1', 6);
@@ -148,16 +151,16 @@ test('mode, suction and water writes verify actual readback; identify is momenta
   device.close();
 });
 
-test('unapplied and rejected properties clear state and allow recovery', async () => {
+test('unapplied and rejected properties preserve fresh reachable state and allow recovery', async () => {
   const { emulator, device } = fixture();
   await device.refresh();
   emulator.ignoreWrites = true;
   await assert.rejects(device.setMode(2), /did not apply/);
-  assert.equal(device.state, undefined);
+  assert.equal(device.state?.mode, 1);
   emulator.ignoreWrites = false;
   emulator.rejectCode = -4004;
   await assert.rejects(device.setMode(2), /code -4004/);
-  assert.equal(device.state, undefined);
+  assert.equal(device.state?.mode, 1);
   emulator.rejectCode = 0;
   assert.equal((await device.setMode(2)).mode, 2);
   device.close();
@@ -174,7 +177,7 @@ test('malformed or failed action results are rejected without trusting acknowled
   ]) {
     emulator.actionReply = response;
     await assert.rejects(device.start(), /Invalid MIoT action response/);
-    assert.equal(device.state, undefined);
+    assert.equal(device.state?.status, 4);
   }
   emulator.actionReply = undefined;
   emulator.rejectCode = -704040013;
@@ -278,7 +281,7 @@ test('invalid preset values send no requests and partial firmware rejection is n
   assert.equal(emulator.calls.length, 0);
   emulator.ignoreWrites = true;
   await assert.rejects(device.configureCleaning({ mode: 1, suction: 4 }), /did not apply/);
-  assert.equal(device.state, undefined);
+  assert.equal(device.state?.suction, 2);
   assert.equal(emulator.writes().length, 2, 'No later writes follow a failed readback');
   device.close();
 });
