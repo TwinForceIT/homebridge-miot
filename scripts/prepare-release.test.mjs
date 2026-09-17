@@ -77,7 +77,10 @@ test('registry failures abort instead of guessing the next version', async () =>
   await assert.rejects(readRegistry(async () => { throw new Error('Network unavailable'); }), /Network unavailable/);
   const history = registry();
   assert.equal(await readRegistry(async (url, options) => {
-    assert.equal(url, `${registryUrl}/%40twinforce%2Fhomebridge-miot`);
+    const requestUrl = new URL(url);
+    assert.equal(requestUrl.origin, registryUrl);
+    assert.equal(requestUrl.pathname, '/%40twinforce%2Fhomebridge-miot');
+    assert.match(requestUrl.searchParams.get('release-check'), /^[a-f0-9-]{36}$/);
     assert.equal(options.headers.Accept, 'application/json');
     assert.ok(options.signal instanceof AbortSignal);
     return { ok: true, json: async () => history };
@@ -101,4 +104,16 @@ test('stamps the package and lockfile consistently and persists metadata needed 
   assert.equal(stamped.gitHead, current);
   assert.deepEqual(stamped['x-homebridge-miot-release'], { commit: current, runId: '123' });
   assert.equal(planRelease(pkg(), registry({ '0.2.2': stamped }), current, ancestor).publish, false);
+});
+
+test('consecutive release checks bypass previously cached registry responses', async () => {
+  const urls = [];
+  const registryFetch = async url => {
+    urls.push(url);
+    return { ok: true, json: async () => registry() };
+  };
+  await readRegistry(registryFetch);
+  await readRegistry(registryFetch);
+  assert.equal(urls.length, 2);
+  assert.notEqual(urls[0], urls[1]);
 });

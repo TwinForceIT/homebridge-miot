@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -68,7 +69,10 @@ export function planRelease(pkg, metadata, commit, isAncestor) {
 }
 
 export async function readRegistry(fetchRegistry = fetch) {
-  const response = await fetchRegistry(`${registryUrl}/${encodeURIComponent(packageName)}`, {
+  // A fresh URL also bypasses caches that ignore request Cache-Control headers.
+  const url = new URL(`${registryUrl}/${encodeURIComponent(packageName)}`);
+  url.searchParams.set('release-check', randomUUID());
+  const response = await fetchRegistry(url.href, {
     headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
     signal: AbortSignal.timeout(30_000),
   });
