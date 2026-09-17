@@ -4,17 +4,17 @@ import { isSupportedModel } from '../dist/devices/registry.js';
 import { CloudSession, SetupError } from './cloud-session.js';
 
 const errorMessages = {
-  INVALID_REGION: 'Wybierz region używany w aplikacji Xiaomi Home.',
-  SESSION_EXPIRED: 'Sesja wygasła. Zaloguj się ponownie.',
-  INVALID_SELECTION: 'Wybierz obsługiwane urządzenia z poprawnym adresem IP i tokenem.',
-  AUTH_REQUIRED: 'Najpierw zaloguj się do Xiaomi.',
-  AUTH_EXPIRED: 'Sesja Xiaomi wygasła. Zaloguj się ponownie.',
-  NETWORK: 'Nie udało się połączyć z Xiaomi. Sprawdź połączenie i spróbuj ponownie.',
-  LOGIN_REJECTED: 'Xiaomi nie zatwierdziło logowania. Wygeneruj nowy kod QR.',
-  INVALID_RESPONSE: 'Xiaomi zwróciło nieoczekiwaną odpowiedź. Spróbuj ponownie później.',
-  API_ERROR: 'Nie udało się pobrać urządzeń. Sprawdź wybrany region i spróbuj ponownie.',
-  UNSAFE_URL: 'Xiaomi zwróciło nieprawidłowy adres logowania.',
-  BUSY: 'Poprzednie żądanie jeszcze trwa. Spróbuj ponownie za chwilę.',
+  INVALID_REGION: 'Select the region used in Xiaomi Home.',
+  SESSION_EXPIRED: 'Your session has expired. Please sign in again.',
+  INVALID_SELECTION: 'Select supported devices with a valid IP address and token.',
+  AUTH_REQUIRED: 'Sign in to Xiaomi first.',
+  AUTH_EXPIRED: 'Your Xiaomi session has expired. Please sign in again.',
+  NETWORK: 'Could not connect to Xiaomi. Check your connection and try again.',
+  LOGIN_REJECTED: 'Xiaomi did not approve the sign-in. Generate a new QR code.',
+  INVALID_RESPONSE: 'Xiaomi returned an unexpected response. Please try again later.',
+  API_ERROR: 'Could not load devices. Check the selected region and try again.',
+  UNSAFE_URL: 'Xiaomi returned an invalid sign-in address.',
+  BUSY: 'The previous request is still running. Please try again shortly.',
 };
 
 class XiaomiMiotUiServer extends HomebridgePluginUiServer {
@@ -44,7 +44,7 @@ class XiaomiMiotUiServer extends HomebridgePluginUiServer {
       } catch (error) {
         // Never forward raw exceptions, request URLs, cookies, or tokens to logs/UI.
         const code = error instanceof CloudError || error instanceof SetupError ? error.code : 'UNKNOWN';
-        throw new RequestError(errorMessages[code] || 'Operacja nie powiodła się. Spróbuj ponownie.', { code });
+        throw new RequestError(errorMessages[code] || 'Something went wrong. Please try again.', { code });
       }
     });
   }

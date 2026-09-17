@@ -4,7 +4,7 @@ import dgram from 'node:dgram';
 import type { RemoteInfo } from 'node:dgram';
 import { EventEmitter, once } from 'node:events';
 import { HELLO, decodePacket, encodePacket } from '../src/miio/codec.js';
-import { MiioTransport } from '../src/miio/transport.js';
+import { MiioTransport, type MiotParams } from '../src/miio/transport.js';
 
 const tokenHex = '00112233445566778899aabbccddeeff';
 const token = Buffer.from(tokenHex, 'hex');
@@ -24,7 +24,7 @@ test('rejects corrupt, truncated and unauthenticated responses without echoing s
   packet[packet.length - 1] = packet[packet.length - 1]! ^ 1;
   assert.throws(() => decodePacket(token, packet), /authentication/);
 });
-interface Request { id: number; method: string; params: unknown[] }
+interface Request { id: number; method: string; params: MiotParams }
 async function peer(handler: (request: Request, reply: (value: unknown, id?: number) => void) => void) {
   const server = dgram.createSocket('udp4');
   let handshakes = 0;
@@ -120,3 +120,19 @@ for (const failure of ['connect-callback', 'connect-throw', 'send-throw'] as con
     assert.equal(closes, 1, 'failure removes its cancellation callback and timer');
   });
 }
+
+
+test('MIoT action objects survive encrypted UDP transport and lost actions are never replayed', async t => {
+  const action = { did: '123', siid: 2, aiid: 1, in: [] };
+  let received = 0;
+  const mock = await peer((request, reply) => {
+    assert.equal(request.method, 'action');
+    assert.deepEqual(request.params, action);
+    if (++received === 1) reply({ ...action, code: 0, out: [] });
+  });
+  const transport = new MiioTransport('127.0.0.1', tokenHex, { port: mock.port, timeout: 80 });
+  t.after(() => { transport.close(); mock.server.close(); });
+  assert.deepEqual(await transport.request('action', action), { ...action, code: 0, out: [] });
+  await assert.rejects(transport.request('action', action), /did not respond/);
+  assert.equal(received, 2, 'An unanswered action must not be retried');
+});

@@ -8,6 +8,7 @@ test('validates manual config and defaults', () => {
   assert.deepEqual(parseConfig({ devices: [{ ...device, id: '', did: ' ' }] }).devices, [device]);
   assert.deepEqual(parseConfig({}), { devices: [], pollInterval: 15 });
   assert.equal(parseConfig({ devices: [{ ...device, model: 'xiaomi.airp.cpa4' }] }).devices.length, 1);
+  assert.equal(parseConfig({ devices: [{ ...device, model: 'xiaomi.vacuum.b112' }] }).devices.length, 1);
 });
 test('rejects invalid secrets, addresses, intervals, identity collisions and unsupported devices', () => {
   for (const change of [{ token: 'secret' }, { host: 'http://192.168.1.30' }, { model: 'unknown' }, { name: '' }, { id: 123 }, { enabled: 'yes' }]) {

@@ -11,22 +11,22 @@
     ],
     "properties": {
       "name": {
-        "title": "Nazwa platformy",
+        "title": "Platform name",
         "type": "string",
         "default": "Xiaomi MIoT",
         "minLength": 1,
         "maxLength": 64
       },
       "pollInterval": {
-        "title": "Odczyt stanu co (sekundy)",
+        "title": "Poll interval (seconds)",
         "type": "integer",
         "default": 15,
         "minimum": 10,
         "maximum": 300,
-        "description": "Odczyt stanu oczyszczacza w sieci lokalnej."
+        "description": "Read device state over your local network."
       },
       "devices": {
-        "title": "Urządzenia",
+        "title": "Devices",
         "type": "array",
         "default": [],
         "items": {
@@ -39,51 +39,52 @@
           ],
           "properties": {
             "name": {
-              "title": "Nazwa w Apple Dom",
+              "title": "Name in Apple Home",
               "type": "string",
               "minLength": 1,
-              "default": "Xiaomi Air Purifier 4 Compact",
+              "default": "Xiaomi device",
               "maxLength": 64
             },
             "model": {
-              "title": "Model urządzenia",
+              "title": "Device model",
               "type": "string",
               "default": "zhimi.airp.cpa4",
               "enum": [
                 "zhimi.airp.cpa4",
-                "xiaomi.airp.cpa4"
+                "xiaomi.airp.cpa4",
+                "xiaomi.vacuum.b112"
               ],
-              "description": "Identyfikator modelu z Xiaomi Home."
+              "description": "Model identifier from Xiaomi Home. The E10 requires Matter enabled in Homebridge 2.4+ and separate Matter pairing in Apple Home."
             },
             "host": {
-              "title": "Lokalny adres IPv4",
+              "title": "Local IPv4 address",
               "type": "string",
               "format": "ipv4",
-              "description": "Np. 192.168.1.50. Zarezerwuj ten adres dla oczyszczacza w routerze."
+              "description": "For example, 192.168.1.50. Reserve this address for the device in your router."
             },
             "token": {
-              "title": "Lokalny token urządzenia",
+              "title": "Local device token",
               "type": "string",
               "format": "password",
               "pattern": "^[a-fA-F0-9]{32}$",
               "minLength": 32,
               "maxLength": 32,
-              "description": "32 znaki szesnastkowe. Token jest zapisany w konfiguracji Homebridge."
+              "description": "32 hexadecimal characters. The token is stored in your Homebridge configuration."
             },
             "did": {
-              "title": "Identyfikator Xiaomi (opcjonalny)",
+              "title": "Xiaomi device ID (optional)",
               "type": "string",
-              "description": "Uzupełniany automatycznie podczas importu z chmury. Zachowaj go przy zmianie adresu IP.",
+              "description": "Filled in during cloud import. Keep this value when changing the IP address.",
               "maxLength": 128
             },
             "id": {
-              "title": "Stały identyfikator (opcjonalny)",
+              "title": "Stable identifier (optional)",
               "type": "string",
-              "description": "Przy ręcznej konfiguracji wpisz np. oczyszczacz-salon, aby zachować urządzenie w Apple Dom po zmianie IP. Nie zmieniaj go później.",
+              "description": "For manual setup, enter a value such as living-room-purifier to preserve the device in Apple Home if its IP changes. Keep this identifier unchanged.",
               "maxLength": 128
             },
             "enabled": {
-              "title": "Włącz urządzenie",
+              "title": "Enable device",
               "type": "boolean",
               "default": true
             }

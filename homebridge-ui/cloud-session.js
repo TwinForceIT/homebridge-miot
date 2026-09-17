@@ -86,7 +86,7 @@ export class CloudSession {
       const device = session.devices.get(did);
       if (!device || this.#reason(device)) throw new SetupError('INVALID_SELECTION');
       return {
-        name: (device.name.trim() || 'Xiaomi Air Purifier').slice(0, 64),
+        name: (device.name.trim() || 'Xiaomi device').slice(0, 64),
         model: device.model,
         host: device.localip,
         token: device.token.toLowerCase(),

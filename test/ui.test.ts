@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { isSupportedModel } from '../src/devices/registry.js';
 
 // These JavaScript modules are shipped unchanged to Homebridge and the browser.
 const sessionModule: string = new URL('../homebridge-ui/cloud-session.js', import.meta.url).href;
@@ -21,7 +22,7 @@ function setup(devices = [DEVICE], clock = { value: 0 }) {
   const session = new CloudSession({
     createClient: () => client,
     regions: ['de', 'cn'],
-    isSupportedModel: (model: string) => model === 'zhimi.airp.cpa4',
+    isSupportedModel,
     now: () => clock.value,
   });
   return { session, client, clock };
@@ -106,4 +107,19 @@ test('cloud import preserves Homebridge settings, manual identity, names and dis
   const moved = mergeDevices(merged, [{ ...incoming, host: '192.168.1.51' }]);
   assert.equal(moved[1].devices.length, 1);
   assert.equal(moved[1].devices[0].host, '192.168.1.51');
+});
+
+
+test('cloud onboarding imports an E10 alongside the purifier using the shared device registry', async () => {
+  const vacuum = { ...DEVICE, did: 'robot', name: 'Robot', model: 'xiaomi.vacuum.b112', localip: '192.168.1.51' };
+  const { session } = setup([DEVICE, vacuum]);
+  try {
+    const { sessionId } = await session.start('de');
+    await session.poll(sessionId);
+    const preview = await session.devices(sessionId);
+    assert.deepEqual(preview.map((item: { canImport: boolean }) => item.canImport), [true, true]);
+    assert.ok(!JSON.stringify(preview).includes(TOKEN));
+    const selected = session.select(sessionId, [DEVICE.did, vacuum.did]);
+    assert.deepEqual(selected.map((item: { model: string }) => item.model), [DEVICE.model, vacuum.model]);
+  } finally { session.reset(); }
 });

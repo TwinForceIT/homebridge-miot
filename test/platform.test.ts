@@ -24,6 +24,8 @@ function fixture(devices: unknown) {
   let started = 0;
   let stopped = 0;
   const definition = getDeviceDefinition(device.model)!;
+  assert.equal(definition.protocol, 'hap');
+  if (definition.protocol !== 'hap') throw new Error('Expected HAP device');
   const creation = mock.method(definition, 'create', (...[_api, _log, _accessory, _config, transport]: Parameters<typeof definition.create>) => ({
     start: () => { started++; }, stop: () => { stopped++; transport.close(); },
   }));

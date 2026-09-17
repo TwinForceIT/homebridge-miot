@@ -19,14 +19,14 @@ function feedback(message, kind = 'info') {
 }
 
 function showError(error) {
-  const message = typeof error?.message === 'string' ? error.message : 'Operacja nie powiodła się. Spróbuj ponownie.';
+  const message = typeof error?.message === 'string' ? error.message : 'Something went wrong. Please try again.';
   feedback(message, 'danger');
 }
 
 function setManual(visible) {
   manualVisible = visible;
   element('manual-toggle').setAttribute('aria-expanded', String(visible));
-  element('manual-toggle').textContent = visible ? 'Ukryj konfigurację ręczną' : 'Dodaj ręcznie lub edytuj konfigurację';
+  element('manual-toggle').textContent = visible ? 'Hide manual configuration' : 'Add manually or edit configuration';
   element('manual-help').hidden = !visible;
   if (visible) homebridge.showSchemaForm();
   else homebridge.hideSchemaForm();
@@ -45,10 +45,10 @@ async function renderConfigured() {
     row.className = 'device-row';
     const text = document.createElement('div');
     const name = document.createElement('strong');
-    name.textContent = device.name || 'Urządzenie Xiaomi';
+    name.textContent = device.name || 'Xiaomi device';
     const detail = document.createElement('span');
     detail.className = 'device-details';
-    detail.textContent = [device.model, device.host, device.enabled === false ? 'Wyłączone w konfiguracji' : null].filter(Boolean).join(' · ');
+    detail.textContent = [device.model, device.host, device.enabled === false ? 'Disabled in configuration' : null].filter(Boolean).join(' · ');
     text.append(name, detail);
     row.append(text);
     list.append(row);
@@ -64,7 +64,7 @@ function resetView() {
   element('cloud-list').replaceChildren();
   element('cancel').hidden = true;
   element('login').disabled = false;
-  element('login').textContent = 'Zaloguj przez Xiaomi';
+  element('login').textContent = 'Sign in with Xiaomi';
   element('region').disabled = false;
   updateImportButton();
 }
@@ -78,14 +78,14 @@ async function endSession(showMessage = false) {
     try { await homebridge.request('/cloud/logout', { sessionId: previous }); }
     catch { /* Closing the settings also terminates the isolated server process. */ }
   }
-  if (showMessage) feedback('Sesja Xiaomi została zakończona. Zapisane urządzenia pozostają w konfiguracji.');
+  if (showMessage) feedback('Signed out of Xiaomi. Your saved devices remain configured.');
 }
 
 function validLoginUrl(value) {
   const url = new URL(value);
   if (url.protocol !== 'https:' || url.username || url.password
     || !(url.hostname === 'account.xiaomi.com' || url.hostname.endsWith('.account.xiaomi.com'))) {
-    throw new Error('Nieprawidłowy adres logowania Xiaomi.');
+    throw new Error('Invalid Xiaomi sign-in address.');
   }
   return url.href;
 }
@@ -96,7 +96,7 @@ async function startLogin() {
   feedback('');
   setManual(false);
   element('login').disabled = true;
-  element('login').textContent = 'Przygotowywanie logowania…';
+  element('login').textContent = 'Preparing sign-in…';
   element('region').disabled = true;
   element('cancel').hidden = false;
   try {
@@ -110,8 +110,8 @@ async function startLogin() {
     element('login-link').href = validLoginUrl(result.loginUrl);
     qrExpiresAt = result.expiresAt;
     element('qr-panel').hidden = false;
-    element('login-status').textContent = 'Oczekiwanie na potwierdzenie…';
-    element('login').textContent = 'Oczekiwanie na Xiaomi…';
+    element('login-status').textContent = 'Waiting for confirmation…';
+    element('login').textContent = 'Waiting for Xiaomi…';
     pollTimer = setTimeout(() => pollLogin(current), 1000);
   } catch (error) {
     if (current !== generation) return;
@@ -124,7 +124,7 @@ async function pollLogin(current) {
   if (current !== generation || !sessionId) return;
   try {
     if (Number.isFinite(qrExpiresAt) && Date.now() >= qrExpiresAt) {
-      throw new Error('Kod QR wygasł. Zaloguj się ponownie, aby otrzymać nowy kod.');
+      throw new Error('The QR code has expired. Sign in again to get a new code.');
     }
     const result = await homebridge.request('/cloud/poll', { sessionId });
     if (current !== generation) return;
@@ -133,12 +133,12 @@ async function pollLogin(current) {
       element('qr-image').removeAttribute('src');
       element('login-link').removeAttribute('href');
       element('cancel').hidden = true;
-      element('login').textContent = 'Połączono z Xiaomi';
+      element('login').textContent = 'Connected to Xiaomi';
       element('cloud-results').hidden = false;
       await loadDevices(current);
       return;
     }
-    if (result.status === 'expired') throw new Error('Kod QR wygasł. Zaloguj się ponownie.');
+    if (result.status === 'expired') throw new Error('The QR code has expired. Please sign in again.');
     pollTimer = setTimeout(() => pollLogin(current), 1500);
   } catch (error) {
     if (current !== generation) return;
@@ -148,16 +148,16 @@ async function pollLogin(current) {
 }
 
 const unavailableMessages = {
-  UNSUPPORTED_MODEL: 'Ten model nie jest jeszcze obsługiwany.',
-  MISSING_IP: 'Brak lokalnego adresu IPv4. Sprawdź połączenie w Xiaomi Home lub dodaj urządzenie ręcznie.',
-  MISSING_TOKEN: 'Xiaomi nie udostępniło lokalnego tokenu. Możesz dodać urządzenie ręcznie.',
+  UNSUPPORTED_MODEL: 'This model is not supported yet.',
+  MISSING_IP: 'No local IPv4 address. Check the connection in Xiaomi Home or add the device manually.',
+  MISSING_TOKEN: 'Xiaomi did not provide a local token. You can add the device manually.',
 };
 
 async function loadDevices(current = generation) {
   element('refresh').disabled = true;
-  element('refresh').textContent = 'Pobieranie…';
+  element('refresh').textContent = 'Loading…';
   element('import').disabled = true;
-  feedback('Pobieranie urządzeń z wybranego regionu…');
+  feedback('Loading devices from the selected region…');
   try {
     const devices = await homebridge.request('/cloud/devices', { sessionId });
     if (current !== generation) return;
@@ -174,27 +174,27 @@ async function loadDevices(current = generation) {
       checkbox.addEventListener('change', updateImportButton);
       const text = document.createElement('span');
       const name = document.createElement('strong');
-      name.textContent = device.name || 'Urządzenie Xiaomi';
+      name.textContent = device.name || 'Xiaomi device';
       const details = document.createElement('span');
       details.className = 'device-details';
-      details.textContent = [device.model, device.host, device.isOnline === false ? 'Offline w Xiaomi Home' : null].filter(Boolean).join(' · ');
+      details.textContent = [device.model, device.host, device.isOnline === false ? 'Offline in Xiaomi Home' : null].filter(Boolean).join(' · ');
       text.append(name, details);
       if (!device.canImport) {
         const reason = document.createElement('span');
         reason.className = 'device-note';
-        reason.textContent = unavailableMessages[device.reason] || 'Nie można dodać tego urządzenia automatycznie.';
+        reason.textContent = unavailableMessages[device.reason] || 'This device cannot be added automatically.';
         text.append(reason);
       }
       row.append(checkbox, text);
       list.append(row);
     }
-    feedback(devices.some((device) => device.canImport) ? 'Wybierz urządzenia, które chcesz dodać lub zaktualizować.' : '');
+    feedback(devices.some((device) => device.canImport) ? 'Select the devices you want to add or update.' : '');
   } catch (error) {
     if (current === generation) showError(error);
   } finally {
     if (current === generation) {
       element('refresh').disabled = false;
-      element('refresh').textContent = 'Odśwież listę';
+      element('refresh').textContent = 'Refresh list';
       updateImportButton();
     }
   }
@@ -207,7 +207,7 @@ function selectedDids() {
 function updateImportButton() {
   const count = selectedDids().length;
   element('import').disabled = importing || count === 0;
-  element('import').textContent = importing ? 'Zapisywanie…' : `Dodaj i zapisz wybrane${count ? ` (${count})` : ''}`;
+  element('import').textContent = importing ? 'Saving…' : `Add and save selected${count ? ` (${count})` : ''}`;
 }
 
 async function importDevices() {
@@ -226,7 +226,10 @@ async function importDevices() {
     await homebridge.savePluginConfig();
     await renderConfigured();
     await endSession();
-    feedback('Urządzenia zapisane. Uruchom ponownie Homebridge, aby pojawiły się w Apple Dom.', 'success');
+    const includesRobot = devices.some((device) => device.model === 'xiaomi.vacuum.b112');
+    feedback(includesRobot
+      ? 'Devices saved. Enable Matter on the bridge running this plugin, restart it, and add the E10 in Apple Home using the robot’s own Matter pairing code.'
+      : 'Devices saved. Restart Homebridge to see them in Apple Home.', 'success');
   } catch (error) {
     showError(error);
   } finally {
@@ -246,7 +249,7 @@ async function initialize() {
   element('import').addEventListener('click', importDevices);
   element('manual-toggle').addEventListener('click', () => setManual(!manualVisible));
   element('qr-image').addEventListener('error', () => {
-    element('login-status').textContent = 'Nie udało się wyświetlić kodu. Otwórz stronę logowania Xiaomi poniżej.';
+    element('login-status').textContent = 'The QR code could not be displayed. Open the Xiaomi sign-in page below.';
   });
   homebridge.addEventListener('configChanged', () => { renderConfigured().catch(showError); });
   window.addEventListener('pagehide', () => {

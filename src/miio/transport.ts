@@ -3,8 +3,10 @@ import { randomInt } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { decodePacket, encodePacket, header, HELLO } from './codec.js';
 
+export type MiotParams = unknown[] | Record<string, unknown>;
+
 export interface MiotTransport {
-  request(method: string, params: unknown[]): Promise<unknown>;
+  request(method: string, params: MiotParams): Promise<unknown>;
   close(): void;
 }
 interface Handshake { deviceId: number; timestamp: number; at: number }
@@ -27,7 +29,7 @@ export class MiioTransport implements MiotTransport {
     this.port = options.port ?? 54321;
     this.handshakeMaxAge = options.handshakeMaxAge ?? 60_000;
   }
-  request(method: string, params: unknown[]): Promise<unknown> {
+  request(method: string, params: MiotParams): Promise<unknown> {
     const job = this.queue.then(() => this.perform(method, params));
     this.queue = job.catch(() => undefined);
     return job;
@@ -37,7 +39,7 @@ export class MiioTransport implements MiotTransport {
     this.handshake = undefined;
     for (const cancel of this.pending) cancel();
   }
-  private async perform(method: string, params: unknown[]): Promise<unknown> {
+  private async perform(method: string, params: MiotParams): Promise<unknown> {
     if (this.closed) throw new Error('Device connection is closed.');
     // Only idempotent reads retry. An unanswered write may already have succeeded.
     const attempts = method === 'get_properties' || method === 'miIO.info' ? 2 : 1;

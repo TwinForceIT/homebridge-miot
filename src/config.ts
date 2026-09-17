@@ -39,7 +39,7 @@ export function parseConfig(input: unknown): ParsedConfig {
     if (typeof value.name !== 'string' || !value.name.trim() || value.name.length > 64) throw new Error(`${label}: a name of 1–64 characters is required.`);
     if (typeof value.host !== 'string' || isIP(value.host) !== 4) throw new Error(`${label}: a valid IPv4 address is required.`);
     if (typeof value.token !== 'string' || !/^[a-f0-9]{32}$/i.test(value.token)) throw new Error(`${label}: token must contain 32 hexadecimal characters.`);
-    if (typeof value.model !== 'string' || !isSupportedModel(value.model)) throw new Error(`${label}: unsupported model. Select an Air Purifier 4 Compact profile.`);
+    if (typeof value.model !== 'string' || !isSupportedModel(value.model)) throw new Error(`${label}: unsupported model. Select a supported Xiaomi device profile.`);
     for (const key of ['id', 'did'] as const) {
       if (value[key] !== undefined && (typeof value[key] !== 'string' || value[key].length > 128)) {
         throw new Error(`${label}: ${key} must be a string of up to 128 characters.`);

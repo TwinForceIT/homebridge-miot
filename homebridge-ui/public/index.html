@@ -1,71 +1,72 @@
 <link rel="stylesheet" href="style.css">
 
-<main id="xiaomi-setup" lang="pl">
+<main id="xiaomi-setup" lang="en">
   <header class="setup-header">
     <p class="eyebrow">XIAOMI MIoT</p>
-    <h2>Twoje urządzenia w Apple Dom</h2>
-    <p>Dodaj Xiaomi Smart Air Purifier 4 Compact. Steruj oczyszczaczem i sprawdzaj stan filtra przez Homebridge.</p>
+    <h2>Your Xiaomi devices in Apple Home</h2>
+    <p>Add your Air Purifier 4 Compact or Robot Vacuum E10 with native Apple Home controls.</p>
+    <p class="help-text"><strong>E10 setup:</strong> Enable Matter on the main or child bridge running this plugin (Homebridge 2.4+), then add the robot in Apple Home with its own Matter pairing code. The purifier uses your existing HomeKit bridge.</p>
   </header>
 
   <div id="feedback" class="alert" role="status" aria-live="polite" hidden></div>
 
   <section class="setup-section" aria-labelledby="configured-title">
     <div class="section-heading">
-      <h3 id="configured-title">Skonfigurowane urządzenia</h3>
+      <h3 id="configured-title">Configured devices</h3>
       <span id="device-count" class="badge bg-secondary">0</span>
     </div>
-    <p id="configured-empty">Nie dodano jeszcze żadnego urządzenia.</p>
-    <ul id="configured-list" class="device-list" aria-label="Skonfigurowane urządzenia"></ul>
-    <button id="manual-toggle" type="button" class="btn btn-outline-secondary" aria-expanded="false">Dodaj ręcznie lub edytuj konfigurację</button>
-    <p id="manual-help" class="help-text" hidden>W formularzu poniżej podaj lokalny adres IPv4 i 32-znakowy token urządzenia. Zapisz zmiany przyciskiem Homebridge, a następnie uruchom ponownie Homebridge.</p>
+    <p id="configured-empty">No devices have been added yet.</p>
+    <ul id="configured-list" class="device-list" aria-label="Configured devices"></ul>
+    <button id="manual-toggle" type="button" class="btn btn-outline-secondary" aria-expanded="false">Add manually or edit configuration</button>
+    <p id="manual-help" class="help-text" hidden>Enter the device's local IPv4 address and 32-character token in the form below. Save with the Homebridge button, then restart Homebridge.</p>
   </section>
 
   <section class="setup-section" aria-labelledby="cloud-title">
-    <h3 id="cloud-title">Dodaj z Xiaomi Home</h3>
-    <p>Zaloguj się kodem QR, wybierz oczyszczacz i zapisz go w konfiguracji.</p>
+    <h3 id="cloud-title">Add from Xiaomi Home</h3>
+    <p>Sign in with a QR code, choose your devices, and save them to your configuration.</p>
     <div class="form-group region-field">
-      <label for="region">Region w aplikacji Xiaomi Home</label>
+      <label for="region">Xiaomi Home region</label>
       <select id="region" class="form-select form-control" aria-describedby="region-help">
-        <option value="de">Europa (Polska / Niemcy)</option>
-        <option value="cn">Chiny kontynentalne</option>
-        <option value="us">Stany Zjednoczone</option>
-        <option value="sg">Singapur</option>
-        <option value="in">Indie</option>
-        <option value="i2">Indie — drugi serwer</option>
-        <option value="ru">Rosja</option>
-        <option value="tw">Tajwan</option>
+        <option value="de">Europe (Poland / Germany)</option>
+        <option value="cn">Mainland China</option>
+        <option value="us">United States</option>
+        <option value="sg">Singapore</option>
+        <option value="in">India</option>
+        <option value="i2">India — second server</option>
+        <option value="ru">Russia</option>
+        <option value="tw">Taiwan</option>
       </select>
-      <p id="region-help" class="help-text">Wybierz ten sam region, w którym dodano urządzenie w Xiaomi Home.</p>
+      <p id="region-help" class="help-text">Use the same region where you added the device in Xiaomi Home.</p>
     </div>
     <div class="actions">
-      <button id="login" type="button" class="btn btn-primary">Zaloguj przez Xiaomi</button>
-      <button id="cancel" type="button" class="btn btn-outline-secondary" hidden>Anuluj logowanie</button>
+      <button id="login" type="button" class="btn btn-primary">Sign in with Xiaomi</button>
+      <button id="cancel" type="button" class="btn btn-outline-secondary" hidden>Cancel sign-in</button>
     </div>
     <div id="qr-panel" class="qr-panel" hidden>
-      <img id="qr-image" width="208" height="208" alt="Kod QR do logowania na konto Xiaomi" referrerpolicy="no-referrer">
+      <img id="qr-image" width="208" height="208" alt="QR code for signing in to your Xiaomi account" referrerpolicy="no-referrer">
       <div>
-        <h4>Zeskanuj i potwierdź</h4>
-        <p>Zeskanuj kod w aplikacji Xiaomi Home i potwierdź logowanie na telefonie.</p>
-        <p id="login-status" role="status" aria-live="polite">Oczekiwanie na potwierdzenie…</p>
-        <a id="login-link" target="_blank" rel="noopener noreferrer" class="login-link">Otwórz stronę logowania Xiaomi</a>
+        <h4>Scan and confirm</h4>
+        <p>Scan the code in Xiaomi Home and approve the sign-in on your phone.</p>
+        <p id="login-status" role="status" aria-live="polite">Waiting for confirmation…</p>
+        <a id="login-link" target="_blank" rel="noopener noreferrer" class="login-link">Open Xiaomi sign-in page</a>
       </div>
     </div>
     <div id="cloud-results" hidden>
       <div class="section-heading results-heading">
-        <h4>Urządzenia na koncie</h4>
-        <button id="refresh" type="button" class="btn btn-outline-secondary">Odśwież listę</button>
+        <h4>Devices on your account</h4>
+        <button id="refresh" type="button" class="btn btn-outline-secondary">Refresh list</button>
       </div>
-      <p id="cloud-empty" hidden>Brak urządzeń w tym regionie. Zakończ sesję i wybierz region z aplikacji Xiaomi Home.</p>
+      <p id="cloud-empty" hidden>No devices found in this region. Sign out and select the region used in Xiaomi Home.</p>
       <fieldset id="cloud-devices">
-        <legend class="visually-hidden">Wybierz urządzenia do dodania</legend>
+        <legend class="visually-hidden">Select devices to add</legend>
         <div id="cloud-list" class="device-list"></div>
       </fieldset>
       <div class="actions">
-        <button id="import" type="button" class="btn btn-primary" disabled>Dodaj i zapisz wybrane</button>
-        <button id="logout" type="button" class="btn btn-outline-secondary">Zakończ sesję Xiaomi</button>
+        <button id="import" type="button" class="btn btn-primary" disabled>Add and save selected</button>
+        <button id="logout" type="button" class="btn btn-outline-secondary">Sign out of Xiaomi</button>
       </div>
     </div>
-    <p class="help-text privacy-note">Logowanie służy do pobrania urządzeń. Sesja konta pozostaje w pamięci tylko na czas konfiguracji. Homebridge zapisuje lokalne tokeny urządzeń i steruje nimi przez domową sieć.</p>
+    <p class="help-text privacy-note">Sign-in is used to discover your devices. Your account session stays in memory only during setup. Homebridge saves local device tokens and controls devices over your home network.</p>
   </section>
 </main>
 
