@@ -4,6 +4,7 @@ import { EventEmitter } from 'node:events';
 import { createHash } from 'node:crypto';
 import type { API, Logger, PlatformAccessory, PlatformConfig } from 'homebridge';
 import { XiaomiMiotPlatform } from '../src/platform.js';
+import register from '../src/index.js';
 import { getDeviceDefinition } from '../src/devices/registry.js';
 
 const device = { name: 'Purifier', model: 'zhimi.airp.cpa4', host: '192.168.1.30', token: '00112233445566778899aabbccddeeff' };
@@ -16,6 +17,7 @@ class Accessory {
 function fixture(devices: unknown) {
   const events = new EventEmitter();
   const registered: PlatformAccessory[] = [];
+  const registrations: { plugin: string; platform: string }[] = [];
   const removed: PlatformAccessory[] = [];
   const updated: PlatformAccessory[] = [];
   const logMessages: string[] = [];
@@ -28,19 +30,30 @@ function fixture(devices: unknown) {
   const api = Object.assign(events, {
     hap: { uuid: { generate: uuid }, Categories: { AIR_PURIFIER: 19 }, Service: { AccessoryInformation: { UUID: 'information' } } },
     platformAccessory: Accessory,
-    registerPlatformAccessories: (_plugin: string, _platform: string, list: PlatformAccessory[]) => registered.push(...list),
+    registerPlatformAccessories: (plugin: string, platform: string, list: PlatformAccessory[]) => {
+      registrations.push({ plugin, platform });
+      registered.push(...list);
+    },
     unregisterPlatformAccessories: (_plugin: string, _platform: string, list: PlatformAccessory[]) => removed.push(...list),
     updatePlatformAccessories: (list: PlatformAccessory[]) => updated.push(...list),
   }) as unknown as API;
   const log = { error: (message: string) => logMessages.push(message), info: (message: string) => logMessages.push(message) } as unknown as Logger;
   const platform = new XiaomiMiotPlatform(log, { platform: 'XiaomiMiot', devices } as PlatformConfig, api);
-  return { platform, events, registered, removed, updated, logMessages, creation, get started() { return started; }, get stopped() { return stopped; } };
+  return { platform, events, registered, registrations, removed, updated, logMessages, creation, get started() { return started; }, get stopped() { return stopped; } };
 }
-test('registers supported devices without caching credentials and closes on shutdown', t => {
+test('scoped package registers the existing Homebridge platform name', () => {
+  const registrations: unknown[][] = [];
+  register({ registerPlatform: (...args: unknown[]) => registrations.push(args) } as unknown as API);
+  assert.deepEqual(registrations, [['@twinforce/homebridge-miot', 'XiaomiMiot', XiaomiMiotPlatform]]);
+});
+
+test('scoped package registers devices with their original HomeKit UUID and closes on shutdown', t => {
   const f = fixture([device]);
   t.after(() => f.creation.mock.restore());
   f.events.emit('didFinishLaunching');
   assert.equal(f.registered.length, 1);
+  assert.deepEqual(f.registrations, [{ plugin: '@twinforce/homebridge-miot', platform: 'XiaomiMiot' }]);
+  assert.equal(f.registered[0]?.UUID, uuid('homebridge-miot:host:192.168.1.30'));
   assert.equal(f.started, 1);
   assert.ok(!JSON.stringify(f.registered[0]?.context).includes(device.token));
   f.events.emit('shutdown');

@@ -1,8 +1,7 @@
 {
-  "name": "homebridge-miot",
+  "name": "@twinforce/homebridge-miot",
   "displayName": "Xiaomi MIoT",
   "version": "0.1.0",
-  "private": true,
   "description": "Native HomeKit integration for Xiaomi MIoT devices, starting with Air Purifier 4 Compact.",
   "type": "module",
   "main": "dist/index.js",
@@ -40,7 +39,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "test": "node --import tsx --test test/*.test.ts",
     "check": "npm run typecheck && npm test && npm run build",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run check"
   },
   "dependencies": {
     "@homebridge/plugin-ui-utils": "^2.2.6"
@@ -50,5 +50,9 @@
     "homebridge": "^2.4.0",
     "typescript": "~5.9.3",
     "tsx": "^4.20.0"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
   }
 }

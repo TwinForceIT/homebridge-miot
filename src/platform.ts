@@ -2,7 +2,7 @@ import type { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformCon
 import { deviceIdentity, parseConfig } from './config.js';
 import { getDeviceDefinition, type AccessoryController } from './devices/registry.js';
 import { MiioTransport } from './miio/transport.js';
-import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
+import { ACCESSORY_UUID_NAMESPACE, PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
 
 export class XiaomiMiotPlatform implements DynamicPlatformPlugin {
   private readonly cached = new Map<string, PlatformAccessory>();
@@ -16,13 +16,13 @@ export class XiaomiMiotPlatform implements DynamicPlatformPlugin {
     const identified = [...this.cached.values()].find(item =>
       !claimed.has(item.UUID) && item.context.identity === identity);
     if (identified) return identified;
-    const legacy = this.cached.get(this.api.hap.uuid.generate(`${PLUGIN_NAME}:${identity}`));
+    const legacy = this.cached.get(this.api.hap.uuid.generate(`${ACCESSORY_UUID_NAMESPACE}:${identity}`));
     // Older caches did not persist identity. A UUID match is safe only while
     // no newer identity has claimed that cached accessory.
     return legacy && !claimed.has(legacy.UUID) && legacy.context.identity === undefined ? legacy : undefined;
   }
   private allocateUuid(identity: string, claimed: ReadonlySet<string>): string {
-    const base = `${PLUGIN_NAME}:${identity}`;
+    const base = `${ACCESSORY_UUID_NAMESPACE}:${identity}`;
     let uuid = this.api.hap.uuid.generate(base);
     for (let suffix = 1; this.cached.has(uuid) || claimed.has(uuid); suffix++) {
       uuid = this.api.hap.uuid.generate(`${base}:replacement:${suffix}`);

@@ -1,0 +1,66 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm run check
+
+  publish:
+    needs: check
+    if: github.repository == 'TwinForceIT/homebridge-miot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+      - name: Check release tag
+        id: release
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          import assert from 'node:assert/strict';
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          assert.equal(pkg.name, '@twinforce/homebridge-miot');
+          assert.equal(process.env.GITHUB_REF, `refs/tags/v${pkg.version}`, 'Run publishing from the matching version tag.');
+          assert.equal(pkg.publishConfig.access, 'public');
+          assert.equal(pkg.publishConfig.registry, 'https://registry.npmjs.org');
+          appendFileSync(process.env.GITHUB_OUTPUT, `tag=${pkg.version.includes('-') ? 'next' : 'latest'}\n`);
+          JS
+      - run: npm ci
+      - name: Build and publish through npm trusted publishing
+        run: npm publish --access public --tag "$NPM_DIST_TAG"
+        env:
+          NPM_DIST_TAG: ${{ steps.release.outputs.tag }}

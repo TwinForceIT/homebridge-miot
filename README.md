@@ -1,4 +1,4 @@
-# homebridge-miot
+# @twinforce/homebridge-miot
 
 Modułowa wtyczka Homebridge do urządzeń Xiaomi MIoT. Pierwsza obsługiwana rodzina to **Xiaomi Smart Air Purifier 4 Compact**: `zhimi.airp.cpa4` i `xiaomi.airp.cpa4`.
 
@@ -41,23 +41,37 @@ Kategoria `AirQuality` jest polityką prezentacji wtyczki: progi PM2.5 to 12 / 3
 - Stały adres IPv4 / rezerwacja DHCP. Kontenery i VLAN-y muszą umożliwiać ruch do urządzenia.
 - Internet podczas logowania i importu; po zapisaniu urządzenia wtyczka nie korzysta z chmury w trakcie sterowania.
 
-## Instalacja z repozytorium
+## Instalacja z npm
 
-Pakiet nie jest jeszcze opublikowany w npm. Przygotuj archiwum na komputerze deweloperskim:
+Docelowa publiczna paczka to **`@twinforce/homebridge-miot`** w npmjs.org. Po jej pierwszej publikacji instalacja nie wymaga konta ani tokenu npm:
+
+```sh
+npm install -g @twinforce/homebridge-miot
+```
+
+Wykonaj polecenie w środowisku Node.js używanym przez Homebridge, np. w jego terminalu. Następnie uruchom ponownie Homebridge i otwórz ustawienia wtyczki **Xiaomi MIoT**. Repozytorium źródłowe pozostaje publiczne na GitHub; paczka jest publikowana w publicznym rejestrze npm.
+
+### Migracja z wcześniejszej paczki lokalnej
+
+Jeśli masz już zainstalowaną wersję o nazwie `homebridge-miot`, zastąp ją paczką z zakresem `@twinforce`. Zatrzymaj Homebridge, wykonaj oba polecenia, a następnie uruchom go ponownie:
+
+```sh
+npm uninstall -g homebridge-miot
+npm install -g @twinforce/homebridge-miot
+```
+
+Zachowaj blok `platform: "XiaomiMiot"`, identyfikatory urządzeń i cache akcesoriów. Homebridge 2 rozpoznaje platformę po tej samej nazwie, a wtyczka zachowuje dotychczasowe UUID akcesoriów. Nie uruchamiaj obu wersji jednocześnie. Zaktualizuj również ewentualne wpisy `plugins`, `disabledPlugins` i pełne nazwy platformy odwołujące się do starej nazwy paczki.
+
+### Instalacja lokalna przed publikacją
 
 ```sh
 npm ci
 npm run check
 npm pack
+npm install -g /pełna/ścieżka/twinforce-homebridge-miot-0.1.0.tgz
 ```
 
-Przenieś `homebridge-miot-0.1.0.tgz` na host Homebridge i zainstaluj je w tym samym środowisku Node.js, w którym działa Homebridge:
-
-```sh
-npm install -g /pełna/ścieżka/homebridge-miot-0.1.0.tgz
-```
-
-W instalacji kontenerowej wykonaj instalację we właściwym kontenerze i zadbaj o trwałość katalogu dodatków. Następnie uruchom ponownie Homebridge, otwórz ustawienia wtyczki **Xiaomi MIoT** i skonfiguruj urządzenie. Nie trzeba instalować kolejnej instancji Homebridge ani zmieniać istniejącego mostka.
+Na innym hoście skopiuj tam utworzone archiwum. W kontenerze użyj środowiska Homebridge i trwałego katalogu dodatków. Instrukcja pierwszej publikacji i kolejnych wydań: [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Konfiguracja przez chmurę
 
