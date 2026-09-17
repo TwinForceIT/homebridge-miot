@@ -1,0 +1,95 @@
+{
+  "pluginAlias": "XiaomiMiot",
+  "pluginType": "platform",
+  "singular": true,
+  "customUi": true,
+  "strictValidation": true,
+  "schema": {
+    "type": "object",
+    "required": [
+      "name"
+    ],
+    "properties": {
+      "name": {
+        "title": "Nazwa platformy",
+        "type": "string",
+        "default": "Xiaomi MIoT",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "pollInterval": {
+        "title": "Odczyt stanu co (sekundy)",
+        "type": "integer",
+        "default": 15,
+        "minimum": 10,
+        "maximum": 300,
+        "description": "Odczyt stanu oczyszczacza w sieci lokalnej."
+      },
+      "devices": {
+        "title": "Urządzenia",
+        "type": "array",
+        "default": [],
+        "items": {
+          "type": "object",
+          "required": [
+            "name",
+            "model",
+            "host",
+            "token"
+          ],
+          "properties": {
+            "name": {
+              "title": "Nazwa w Apple Dom",
+              "type": "string",
+              "minLength": 1,
+              "default": "Xiaomi Air Purifier 4 Compact",
+              "maxLength": 64
+            },
+            "model": {
+              "title": "Model urządzenia",
+              "type": "string",
+              "default": "zhimi.airp.cpa4",
+              "enum": [
+                "zhimi.airp.cpa4",
+                "xiaomi.airp.cpa4"
+              ],
+              "description": "Identyfikator modelu z Xiaomi Home."
+            },
+            "host": {
+              "title": "Lokalny adres IPv4",
+              "type": "string",
+              "format": "ipv4",
+              "description": "Np. 192.168.1.50. Zarezerwuj ten adres dla oczyszczacza w routerze."
+            },
+            "token": {
+              "title": "Lokalny token urządzenia",
+              "type": "string",
+              "format": "password",
+              "pattern": "^[a-fA-F0-9]{32}$",
+              "minLength": 32,
+              "maxLength": 32,
+              "description": "32 znaki szesnastkowe. Token jest zapisany w konfiguracji Homebridge."
+            },
+            "did": {
+              "title": "Identyfikator Xiaomi (opcjonalny)",
+              "type": "string",
+              "description": "Uzupełniany automatycznie podczas importu z chmury. Zachowaj go przy zmianie adresu IP.",
+              "maxLength": 128
+            },
+            "id": {
+              "title": "Stały identyfikator (opcjonalny)",
+              "type": "string",
+              "description": "Przy ręcznej konfiguracji wpisz np. oczyszczacz-salon, aby zachować urządzenie w Apple Dom po zmianie IP. Nie zmieniaj go później.",
+              "maxLength": 128
+            },
+            "enabled": {
+              "title": "Włącz urządzenie",
+              "type": "boolean",
+              "default": true
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,49 @@
+#xiaomi-setup {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 8px 4px 20px;
+  font-size: 1rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+#xiaomi-setup [hidden] { display: none !important; }
+#xiaomi-setup h2 { font-size: 1.65rem; font-weight: 650; letter-spacing: -.025em; }
+#xiaomi-setup h3 { margin-bottom: 12px; font-size: 1.15rem; font-weight: 650; }
+#xiaomi-setup h4 { font-size: 1rem; font-weight: 650; }
+#xiaomi-setup p { margin-bottom: 14px; }
+#xiaomi-setup .eyebrow { font-size: .75rem; font-weight: 650; letter-spacing: .12em; margin-bottom: 8px; }
+#xiaomi-setup .setup-header { margin-bottom: 24px; }
+#xiaomi-setup .setup-section { border-top: 1px solid var(--bs-border-color, #858b91); padding: 24px 0; }
+#xiaomi-setup .section-heading { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+#xiaomi-setup .section-heading h3, #xiaomi-setup .section-heading h4 { margin: 0; }
+#xiaomi-setup .help-text { font-size: .875rem; margin-top: 8px; }
+#xiaomi-setup .privacy-note { margin: 20px 0 0; }
+#xiaomi-setup .region-field { max-width: 400px; }
+#xiaomi-setup label { font-weight: 550; margin-bottom: 6px; }
+#xiaomi-setup .btn, #xiaomi-setup select { min-height: 44px; }
+#xiaomi-setup .btn { margin: 0; white-space: normal; }
+#xiaomi-setup .btn-outline-secondary { color: inherit; border-color: currentColor; }
+#xiaomi-setup .btn-outline-secondary:hover { color: inherit; background-color: var(--bs-secondary-bg, #e9ecef); border-color: currentColor; }
+#xiaomi-setup .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+#xiaomi-setup :is(button, select, input, a):focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
+#xiaomi-setup .qr-panel { display: flex; align-items: center; gap: 24px; padding: 24px 0 8px; }
+#xiaomi-setup .qr-panel img { flex-shrink: 0; max-width: 100%; border: 8px solid white; background: white; border-radius: 8px; }
+#xiaomi-setup .login-link { display: inline-block; padding: 8px 0; min-height: 44px; }
+#xiaomi-setup .device-list { list-style: none; margin: 0 0 16px; padding: 0; }
+#xiaomi-setup .device-row { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--bs-border-color, #858b91); }
+#xiaomi-setup label.device-row { cursor: pointer; margin: 0; font-weight: normal; }
+#xiaomi-setup .device-row input { margin-top: 5px; flex-shrink: 0; width: 20px; height: 20px; }
+#xiaomi-setup .device-row strong { display: block; font-weight: 600; }
+#xiaomi-setup .device-details { display: block; font-size: .875rem; }
+#xiaomi-setup .device-note { display: block; margin-top: 3px; font-size: .875rem; }
+#xiaomi-setup .results-heading { justify-content: space-between; flex-wrap: wrap; margin-top: 24px; }
+#xiaomi-setup fieldset { min-width: 0; }
+#xiaomi-setup .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 480px) {
+  #xiaomi-setup .qr-panel { flex-direction: column; align-items: flex-start; gap: 16px; }
+  #xiaomi-setup .actions > .btn { width: 100%; }
+  #xiaomi-setup h2 { font-size: 1.45rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #xiaomi-setup *, #xiaomi-setup *::before, #xiaomi-setup *::after { animation: none !important; transition: none !important; }
+}

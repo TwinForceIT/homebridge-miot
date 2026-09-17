@@ -1,0 +1,54 @@
+{
+  "name": "homebridge-miot",
+  "displayName": "Xiaomi MIoT",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Native HomeKit integration for Xiaomi MIoT devices, starting with Air Purifier 4 Compact.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "engines": {
+    "node": "^22.12.0 || ^24.0.0 || ^26.0.0",
+    "homebridge": "^2.0.0"
+  },
+  "keywords": [
+    "homebridge-plugin",
+    "supports-hap",
+    "xiaomi",
+    "miot",
+    "air-purifier"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TwinForceIT/homebridge-miot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TwinForceIT/homebridge-miot/issues"
+  },
+  "homepage": "https://github.com/TwinForceIT/homebridge-miot#readme",
+  "files": [
+    "dist",
+    "homebridge-ui",
+    "config.schema.json",
+    "README.md",
+    "LICENSE",
+    "docs"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "test": "node --import tsx --test test/*.test.ts",
+    "check": "npm run typecheck && npm test && npm run build",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@homebridge/plugin-ui-utils": "^2.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "homebridge": "^2.4.0",
+    "typescript": "~5.9.3",
+    "tsx": "^4.20.0"
+  }
+}
