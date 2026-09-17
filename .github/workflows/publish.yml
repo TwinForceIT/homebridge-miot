@@ -2,20 +2,23 @@ name: Publish to npm
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Keep rapid pushes queued instead of replacing the previously pending release.
 concurrency:
-  group: npm-publish-${{ github.ref }}
+  group: npm-publish
+  queue: max
   cancel-in-progress: false
 
 jobs:
   check:
+    if: github.repository == 'TwinForceIT/homebridge-miot' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         node: [22, 24, 26]
@@ -29,38 +32,39 @@ jobs:
           package-manager-cache: false
       - run: npm ci
       - run: npm run check
+      - run: npm pack --dry-run
 
   publish:
     needs: check
-    if: github.repository == 'TwinForceIT/homebridge-miot'
+    if: github.repository == 'TwinForceIT/homebridge-miot' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
-      - name: Check release tag
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@11.8.0
+      - name: Select the next version or recognize a completed release
         id: release
-        run: |
-          node --input-type=module <<'JS'
-          import { readFileSync, appendFileSync } from 'node:fs';
-          import assert from 'node:assert/strict';
-          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
-          assert.equal(pkg.name, '@twinforce/homebridge-miot');
-          assert.equal(process.env.GITHUB_REF, `refs/tags/v${pkg.version}`, 'Run publishing from the matching version tag.');
-          assert.equal(pkg.publishConfig.access, 'public');
-          assert.equal(pkg.publishConfig.registry, 'https://registry.npmjs.org');
-          appendFileSync(process.env.GITHUB_OUTPUT, `tag=${pkg.version.includes('-') ? 'next' : 'latest'}\n`);
-          JS
-      - run: npm ci
-      - name: Build and publish through npm trusted publishing
-        run: npm publish --access public --tag "$NPM_DIST_TAG"
+        run: node scripts/prepare-release.mjs
+      - if: steps.release.outputs.publish == 'true'
+        run: npm ci
+      - name: Publish to npm using OIDC
+        if: steps.release.outputs.publish == 'true'
+        run: npm publish --access public --tag latest
+      - name: Record successful publication
+        if: steps.release.outputs.publish == 'true'
         env:
-          NPM_DIST_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          printf 'Published [@twinforce/homebridge-miot@%s](https://www.npmjs.com/package/@twinforce/homebridge-miot/v/%s) to npm.\n' "$RELEASE_VERSION" "$RELEASE_VERSION" >> "$GITHUB_STEP_SUMMARY"

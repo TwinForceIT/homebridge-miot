@@ -9,7 +9,7 @@ A modular Homebridge plugin for Xiaomi MIoT devices with native controls in Appl
 
 The purifier uses standard HomeKit services. The E10 uses Homebridge's native Matter robot vacuum support, so Apple Home recognizes it as a robot vacuum. Neither device is represented by custom switches. Control is local through miIO/MIoT; Xiaomi Cloud is used only during setup.
 
-**Validation status for 0.2.0:** covered by automated tests, checked against published MIoT specifications, and tested against the public QR login initiation endpoint. A complete login with a real Xiaomi account, control of physical devices, and presentation in Apple Home still require hardware testing. This project is not an Apple-certified accessory or an official Xiaomi integration.
+**Validation status:** covered by automated tests, checked against published MIoT specifications, and tested against the public QR login initiation endpoint. E10 field feedback confirms Matter pairing, movement, pause, and cleaning-mode changes, but the revised command confirmation handling still needs physical validation. The complete hardware acceptance checklist and a complete Xiaomi account login have not been verified. This project is not an Apple-certified accessory or an official Xiaomi integration.
 
 ## Air Purifier 4 Compact in Apple Home
 
@@ -59,7 +59,9 @@ Apple Home's native robot vacuum support uses **Matter**. The E10 is published t
 | Device fault | Native operational error, with the Xiaomi error code in Homebridge logs |
 | Lost connection | Native operational error and unknown battery; commands fail until communication recovers |
 
-**Pause is mapped to Xiaomi's stop-sweeping action, which upstream integrations use to pause in place; this behavior still needs confirmation on physical E10 hardware. Stop/Idle sends the return-to-dock action.** Start and Resume use the robot's start-cleaning action. State is read back from the robot rather than assumed from a command being accepted. Change the cleaning mode while the robot is idle or charging and has no fault; actual setting changes during cleaning, pause, return to dock, or a firmware update are rejected. Repeating settings already reported by the robot succeeds without sending another command. Repeating the Cleaning run mode preserves a physical pause; use the native Resume command to resume.
+**Pause is mapped to Xiaomi's stop-sweeping action to pause in place. Stop/Idle sends the return-to-dock action.** Start and Resume use the robot's start-cleaning action. State is read back from the robot rather than assumed from a command being accepted. Change the cleaning mode while the robot is idle or charging and has no fault; actual setting changes during cleaning, pause, return to dock, or a firmware update are rejected. Repeating settings already reported by the robot succeeds without sending another command. Repeating the Cleaning run mode preserves a physical pause; use the native Resume command to resume.
+
+Xiaomi may acknowledge a command before its properties reflect the change. The plugin accepts normal and pending acknowledgements, then polls the affected property with a **three-second settling budget** shared by the whole preset. It never repeats the action or write. Individual network requests and the final full state read can add time. A rejected or unconfirmed command still fails, but a successful fresh state read keeps the robot reachable and preserves its actual activity and battery. A failed state read still produces a communication error.
 
 Only `xiaomi.vacuum.b112` is supported. Similar product names such as E10C or E10 variants with another MIoT identifier must not be assumed compatible. The published E10 specification supplies numeric fault codes without a complete description for each value. The plugin preserves raw codes and treats unrecognized nonzero codes as native faults. One model-specific exception is `2105`: an E10 field report showed it at 100% battery without a Xiaomi Home error, consistent with the [fully charged indication documented by python-miio for Viomi](https://github.com/rytilahti/python-miio/issues/789). It does not create an operational error or block cleaning settings. This exception is based on observed behavior, not an official E10 error dictionary; other codes, including other values above 2000, are not silently ignored. Activity and battery still come from their own properties, not from this code. Apple Home decides how native modes, errors, and battery details are displayed. A communication failure is exposed as a native operational error; the Homebridge 2.4 API does not let this plugin guarantee an Apple Home “No Response” badge for the standalone robot.
 
@@ -76,6 +78,21 @@ The native cleaning-mode menu includes 17 choices:
 These are native cleaning modes, without additional switches or a simulated fan slider. Levels retain the numerical names from Xiaomi's specification. A selected preset remains reported only while the robot's actual settings match it; external changes can return the displayed selection to the corresponding base task. Apple Home may present a subset of native mode details, depending on its version.
 
 Filter, brush, and mop life percentages remain in Xiaomi Home. The plugin logs a replacement reminder when a consumable reaches 0%, without resetting its wear. Room selection and maps are not exposed for this model.
+
+### If Apple Home stays on “Updating” after inactivity
+
+The plugin reads the robot in the background at `pollInterval` even when no phone is using Apple Home. Matter manages controller subscriptions and their keepalives. An Apple Home “Updating” tile does not by itself mean the robot reports firmware-update status, and a successful **Play Sound to Locate** does not prove that passive subscription reports are reaching that controller. A similar Identify-dependent symptom was reported in [Homebridge issue #3951](https://github.com/homebridge/homebridge/issues/3951); that report does not establish the cause in every installation.
+
+To investigate a recurrence, enable **Homebridge debug mode**, restart the bridge, and capture the time when the tile becomes stuck before issuing another command. The plugin logs:
+
+- `state read #…`: a successful fresh Xiaomi reading, including activity, cleaning mode, battery, and raw fault; its update has been submitted to Homebridge.
+- `Matter snapshot`: the operational state, run mode, and battery currently readable from Homebridge's live Matter endpoint. The battery field uses Matter's half-percent units: `200` means 100%. This snapshot is not an acknowledgement from Apple Home.
+
+Compare the tile on another Apple device at the same time, if available. Preserve nearby Matter subscription warnings such as `reported invalid by peer` and the plugin's refresh lines. Include Homebridge, iOS/macOS, and home hub versions, excluding tokens and pairing codes. If Xiaomi reads and Matter snapshots continue while a tile remains stuck, investigate the controller/subscription path instead of changing the robot's state. Do not reset the pairing as the first diagnostic step.
+
+A field capture also revealed an independent error-recovery defect: the Matter endpoint retained the previous error description after its error code returned to zero. Recovery now explicitly clears the description. See the [investigation and confirmed fix](docs/UPDATING-INVESTIGATION.md); whether it resolves the affected iPhone tile still needs field testing.
+
+The idle refresh path is covered by six-hour simulated polling and recovery tests. Reproducing and resolving an Apple Home rendering/subscription failure still requires observations from an affected controller.
 
 ### Enable Matter and pair the E10
 
@@ -237,6 +254,10 @@ npm pack --dry-run
 ```
 
 Tests cover real HAP classes, a simulated UDP device, cryptographic vectors, failures and recovery, import, session expiry, and stable identity. Vacuum tests cover MIoT commands, authoritative state reads, native Matter controls, faults, battery, and accessory lifecycle. They do not replace testing with physical devices. See [docs/HARDWARE-TEST.md](docs/HARDWARE-TEST.md) for the acceptance checklist.
+
+## Releases
+
+Every push or merged pull request to `main` runs the supported Node.js test matrix and automatically publishes the next stable patch to npm. Larger versions can be requested explicitly. Releases use npm Trusted Publishing without a stored npm token; see [the one-time setup and release guide](docs/PUBLISHING.md).
 
 ## Technical references
 

@@ -1,61 +1,65 @@
 # Publishing @twinforce/homebridge-miot
 
-The package is **public** on **https://registry.npmjs.org**. Its public source repository remains **https://github.com/TwinForceIT/homebridge-miot**. The publishing npm account must have access to the `@twinforce` scope; owning the GitHub organization does not grant npm permissions.
+The package is public on [npm](https://www.npmjs.com/package/@twinforce/homebridge-miot). Its [GitHub repository](https://github.com/TwinForceIT/homebridge-miot) also remains public.
 
-## Publishing from a local checkout
+## One-time npm setup
 
-The first public release, `0.1.0`, has already been published. For subsequent releases, choose a new version; npm does not allow publishing the same package name and version again.
-
-Use a signed-in npm account with publishing access to `@twinforce`. If this is an npm organization, the account must belong to a team with the appropriate package permissions. Complete any two-factor authentication required by npm.
-
-From a clean checkout containing the intended release:
-
-```sh
-npm login --scope=@twinforce --registry=https://registry.npmjs.org
-npm whoami --registry=https://registry.npmjs.org
-npm ci
-npm publish --access public
-```
-
-Update the package version and lockfile before publishing. `prepublishOnly` runs type checks, tests, and the build. `prepack` ensures compiled JavaScript is present. Only the declared package files are included; Homebridge users do not need TypeScript or development dependencies.
-
-After publishing, check the registry:
-
-```sh
-npm view @twinforce/homebridge-miot version --registry=https://registry.npmjs.org
-```
-
-Also verify installation from an environment without npm credentials. Do not put tokens or passwords in repository files. The project's `.npmrc` contains only the public scope-to-registry mapping.
-
-## Automated releases
-
-The `.github/workflows/publish.yml` workflow uses npm Trusted Publishing through OIDC, without a long-lived npm token in GitHub. Before using it, configure the following trusted publisher in the existing package's settings on npmjs.com:
+A package maintainer must configure **Trusted Publisher** in the package's **Settings** on npmjs.com. Owning the GitHub organization does not grant npm package permissions.
 
 | Field | Value |
 | --- | --- |
 | Provider | GitHub Actions |
 | Organization or user | `TwinForceIT` |
 | Repository | `homebridge-miot` |
-| Workflow filename | `publish.yml` |
-| Environment | Leave empty |
-| Allowed actions | Allow direct `npm publish` |
+| Workflow filename | `publish.yml` (filename only) |
+| Environment name | Leave empty |
+| Allowed actions | Enable direct **`npm publish`** |
 
-Adding the workflow to GitHub does not configure npm automatically. Automated publishing will fail until this trust relationship exists. The workflow uses Node 24, an npm version supporting OIDC, a GitHub-hosted runner, and the `id-token: write` permission. npm includes provenance when a public package is published from a public repository.
+New trusted publishers may default to staged publishing only. Direct publishing must be enabled for unattended releases. Save the configuration and complete npm's account verification if requested.
 
-Once Trusted Publishing is configured, create a release from a clean checkout:
+GitHub Actions must be enabled for this repository and allowed to use `actions/checkout` and `actions/setup-node`. No npm token, GitHub personal access token, repository secret, or environment is required. The workflow requests only `contents: read` and, in the publishing job, `id-token: write`. It uses GitHub-hosted runners, Node 24, and pinned npm 11.8.0 (trusted publishing requires npm 11.5.1 or later). npm automatically attaches provenance for this public repository and package.
+
+Saving the workflow does not create the npm trust relationship. The first publication cannot succeed until the npm settings above are saved.
+
+## Every push or merge to main
+
+The default branch is **`main`**, not `master`. `.github/workflows/publish.yml` starts on every push to `main`, including merged pull requests and documentation-only changes:
+
+1. Check out the exact source commit and run type checks, tests, build, and package inspection on Node 22, 24, and 26.
+2. Read the public npm release history and select the next stable patch version, for example `0.2.1` → `0.2.2`.
+3. Stamp that version into `package.json` and both root lockfile entries on the runner.
+4. Publish to the public registry with the `latest` tag using npm Trusted Publishing. Package lifecycle checks must also pass before publication.
+5. Record the published version and package link in the workflow's run summary.
+
+Pull requests and other branches are tested by `ci.yml` and never published. The publishing workflow can also be run manually from **Actions → Publish to npm → Run workflow**, selecting `main`.
+
+There are no automatic commits back to the repository and no tag-triggered release loops. The version in the source checkout is a **minimum requested release version**, not necessarily the current npm version; the installed package always contains its actual published version. Each release records its source commit and workflow run ID in npm metadata, in addition to provenance.
+
+To request a larger release, set a stable version higher than every published stable version in both package files, for example:
 
 ```sh
-npm version patch
-git push origin main --follow-tags
+npm version minor --no-git-tag-version
 ```
 
-Use the appropriate version increment for the release. The tag must exactly match `v` followed by the version in `package.json`. The workflow checks this, runs tests on Node 22/24/26, and publishes the public package. Stable versions use the `latest` dist-tag; prerelease versions use `next`. An ordinary push to `main` does not publish a package. A manually triggered workflow also requires selecting the matching release tag.
+Check the current npm version first: if the checkout's version lags behind npm, set an explicit higher version instead. Commit and push the change normally. Prereleases are rejected by this stable-release workflow.
 
-Do not trigger GitHub Actions to republish a version already published locally. Configure Trusted Publishing first, then increment the version for the next release.
+## Queueing, retries, and recovery
+
+Releases share one queue, so version selection and publication cannot race with another run of this workflow. GitHub allows up to 100 pending runs with `queue: max`; avoid overlapping manual publication from a developer machine. A failed check or registry request fails the run without publishing.
+
+Rerunning a commit already present on npm is a successful no-op. An older commit whose descendant was already published is also skipped, preventing an old rerun or out-of-order queued run from rolling back `latest`. Divergent or unreadable source history fails the release instead of guessing. The first automated release accepts the existing manually published versions without commit metadata and establishes this source tracking.
+
+If npm trust setup was missing or publication failed, fix the cause and choose **Re-run failed jobs** on the affected workflow. Do not bump the version just to retry. If npm accepted a release before the runner lost its connection, a retry detects its recorded source commit and does not publish it twice. Do not unpublish versions and expect the same version number to become reusable.
+
+Read the run summary in [GitHub Actions](https://github.com/TwinForceIT/homebridge-miot/actions/workflows/publish.yml) and verify the public registry:
+
+```sh
+npm view @twinforce/homebridge-miot version --registry=https://registry.npmjs.org
+npm view @twinforce/homebridge-miot@latest x-homebridge-miot-release --json
+```
 
 ## References
 
-- [Public scoped packages](https://docs.npmjs.com/creating-and-publishing-scoped-public-packages/)
-- [Publishing an npm organization-scoped package](https://docs.npmjs.com/creating-and-publishing-an-organization-scoped-package/)
-- [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
-- [npm publish](https://docs.npmjs.com/cli/v11/commands/npm-publish/)
+- [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
+- [GitHub workflow concurrency and queueing](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)
+- [Public scoped npm packages](https://docs.npmjs.com/creating-and-publishing-scoped-public-packages/)

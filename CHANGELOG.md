@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Publish automatically after successful checks on every push or merge to `main`, using npm Trusted Publishing, automatic patch versions, queued releases, and idempotent retries.
+
+- Explicitly clear stale Matter operational-error details when the robot recovers; nested state merging previously retained the old communication/fault description alongside NoError.
+- Add background-refresh and live Matter endpoint diagnostics to Homebridge debug logs for investigating an Apple Home tile stuck on Updating; resolution of this Apple Home symptom still needs validation on an affected controller.
+- Keep the polling timer scheduled after unexpected cycle failures and test six hours of passive polling, automatic recovery, and shutdown.
+- Accept Xiaomi action acknowledgements that omit echoed service/action IDs, while checking any IDs supplied by the firmware.
+- Accept pending MIoT command results and wait for delayed robot state updates before completing native Matter commands; mutations are never replayed.
+- Share a three-second confirmation polling budget across a cleaning preset, polling only the changing properties.
+- Preserve fresh activity and battery readings when a reachable robot rejects or does not confirm a command, instead of incorrectly reporting a communication failure.
+- Add delayed-firmware regression coverage and exercise asynchronous commands through the real Homebridge Matter endpoint.
+
 ## 0.2.1
 
 - Select the purifier's actual Sleep mode at 1% on the native speed slider; retain all 15 Favorite levels at 2–100% and preserve Sleep when HomeKit repeats Manual.
